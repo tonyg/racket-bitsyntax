@@ -5,6 +5,12 @@
 ;; by 8. If the number of bits is divisible by 8, the bitstring is
 ;; also a binary."
 ;;
+;; They don't make it clear in the documentation that I can see, but
+;;     <<_:6, F:10, _:8>> = <<255, 240, 0>>.
+;; gives a binding of F = 1008, rather than 963, so clearly when
+;; destructuring a binary bits are counted off from the MSB of a byte
+;; to the LSB rather than the other way around!
+;;
 ;; A binary, for Racket, is a (bytes?).
 
 ;; A Binary is a (bytes ...).
@@ -14,10 +20,26 @@
 ;; - a (bit-slice Binary Number Number), a bit-aligned sub-binary
 ;; - a (splice Number Bitstring Bitstring), a join of two bitstrings
 ;;
-;; A Bitstring represents a string of bits. Bits are numbered starting
-;; from zero, from least- to most-significant, so in a (bytes?), if
-;; the 0th byte is #x80, then the 0th bit of the corresponding
-;; bitstring is 0 and the 7th bit is 1.
+;; A Bitstring represents a string of bits, numbered ascending from
+;; zero. Extraction of bytes from a bit string is as follows:
+;; - the first byte is bits 0 through 7 inclusive; bit 0 is the MOST
+;;   significant bit in the byte.
+;; - the second byte is bits 8 through 15;
+;; - etc.
+;;
+;; All integer quantities 8 bits or shorter that are read out of a bit
+;; string are read in this way. Their most-significant bit is the
+;; lowest-numbered bit in the bit string. It is only when numbers
+;; larger than 8 bits are read out that endianness comes into
+;; play. Whether big- or little-endian interpretations are used, the
+;; most-significant bit in any byte-size piece, no matter its
+;; alignment, is always the lowest-numbered bit in the bit string.
+;;
+;; This is not quite what one would expect from a mathematical point
+;; of view (and it doesn't line up too closely with Racket's bit
+;; manipulation primitives either) but makes sense when considering
+;; the way network packets are written down and thought about, and is
+;; compatible with Erlang to boot.
 
 (require rackunit)
 
@@ -34,13 +56,17 @@
 	 bit-string-append
 	 bit-string-split-at-or-false
 	 bit-string-split-at
+	 bit-string-ref
 	 sub-bit-string
 	 bit-string-byte-count
 	 copy-bits!
 	 bit-string-pack!
 	 bit-string-pack
+	 bit-string-pack
 	 bit-string->bytes
-	 bit-string->bytes/pad)
+	 bit-string->bytes/align
+	 bit-string->integer
+	 integer->bit-string)
 
 (struct bit-slice (binary low-bit high-bit)
 	#:transparent)
@@ -152,14 +178,48 @@
 	(error 'bit-string-split-at "Split point negative or beyond length of string: ~v" offset)
 	(values lhs rhs))))
 
+(define (bit-string-ref x offset)
+  (when (negative? offset)
+    (error 'bit-string-ref "Offset must be non-negative: ~v" offset))
+  (when (>= offset (bit-string-length x))
+    (error 'bit-string-ref "Offset must be less than or equal to bit string length: ~v" offset))
+  (let search ((x x)
+	       (offset offset))
+    (cond
+     ((bytes? x)
+      (let-values (((byte-offset bit-offset) (quotient/remainder offset 8)))
+	(bitwise-bit-field (bytes-ref x byte-offset) (- 7 bit-offset) (- 8 bit-offset))))
+     ((bit-slice? x)
+      (bit-string-ref (bit-slice-binary x) (+ (bit-slice-low-bit x) offset)))
+     ((splice? x)
+      (let* ((left (splice-left x))
+	     (midpoint (bit-string-length left)))
+	(if (< offset midpoint)
+	    (search left offset)
+	    (search (splice-right x) (- offset midpoint))))))))
+
+(check-equal? (bit-string-ref (bytes #x80) 0) 1)
+(check-equal? (bit-string-ref (bytes #x80) 7) 0)
+(check-equal? (bit-string-ref (bytes #x20) 2) 1)
+(check-equal? (bit-string-ref (bytes #x01) 0) 0)
+(check-equal? (bit-string-ref (bytes #x01) 7) 1)
+(check-equal? (bit-string-ref (bytes #x00 #x80) 8) 1)
+(check-equal? (bit-string-ref (bytes #x00 #x01) 15) 1)
+(check-equal? (bit-string-ref (bit-slice (bytes #x20) 2 3) 0) 1)
+(check-equal? (bit-string-ref (bit-slice (bytes #x40) 2 3) 0) 0)
+
 (define (sub-bit-string x low-bit high-bit)
   (when (negative? low-bit)
     (error 'sub-bit-string "Low bit must be non-negative: ~v" low-bit))
   (when (> high-bit (bit-string-length x))
-    (error 'sub-bit-string "High bit must be less than or equal to bit string length: ~v" high-bit))
+    (error 'sub-bit-string
+	   "High bit must be less than or equal to bit string length: ~v" high-bit))
   (cond
    ((bytes? x)
-    (bit-slice x low-bit high-bit))
+    (if (and (zero? low-bit)
+	     (= high-bit (* 8 (bytes-length x))))
+	x
+	(bit-slice x low-bit high-bit)))
    ((bit-slice? x)
     (let ((old-low (bit-slice-low-bit x)))
       (bit-slice (bit-slice-binary x)
@@ -170,11 +230,32 @@
       (let-values (((mid right) (bit-string-split-at mid (- high-bit low-bit))))
 	mid)))))
 
-(define (bit-string-byte-count x)
-  (quotient (bit-string-length x) 8))
+(define (bits->bytes bit-count)
+  (quotient (+ 7 bit-count) 8))
 
-(define (bit-string-byte-count/slop x)
-  (quotient/remainder (bit-string-length x) 8))
+(define (bit-string-byte-count x)
+  (bits->bytes (bit-string-length x)))
+
+(check-equal? (bit-string-byte-count (bytes #xff)) 1)
+(check-equal? (bit-string-byte-count (bytes #xff #x00)) 2)
+(check-equal? (bit-string-byte-count (bit-slice (bytes #xff #x00) 6 16)) 2)
+(check-equal? (bit-string-byte-count (bit-slice (bytes #xff #x00) 6 14)) 1)
+
+(define (bits->bytes+slop bit-count)
+  (let* ((byte-count (quotient (+ 7 bit-count) 8))
+	 (slop (- (* 8 byte-count) bit-count)))
+    (values byte-count slop)))
+
+(define (bit-string-byte-count+slop x)
+  (bits->bytes+slop (bit-string-length x)))
+
+(check-equal? (let-values (((b s) (bit-string-byte-count+slop
+				   (bit-slice (bytes #xff #x00) 6 16))))
+		(list b s))
+	      (list 2 6))
+
+(define (bit-mask width)
+  (sub1 (arithmetic-shift 1 width)))
 
 (define (copy-bits! target target-offset source source-offset remaining-count)
   (let-values (((target-byte target-shift) (quotient/remainder target-offset 8))
@@ -191,13 +272,13 @@
       (when (positive? bit-count)
 	(let ((old (bytes-ref target target-byte))
 	      (new (bytes-ref source source-byte))
-	      (mask (sub1 (arithmetic-shift 1 bit-count))))
-	  (let ((target-mask (bitwise-not (arithmetic-shift mask target-shift)))
-		(source-mask (arithmetic-shift mask source-shift)))
+	      (mask (bit-mask bit-count)))
+	  (let ((target-mask (bitwise-not (arithmetic-shift mask (- 8 target-shift bit-count))))
+		(source-mask (arithmetic-shift mask (- 8 source-shift bit-count))))
 	    (bytes-set! target target-byte
 			(bitwise-ior (bitwise-and old target-mask)
 				     (arithmetic-shift (bitwise-and new source-mask)
-						       (- target-shift source-shift))))))
+						       (- source-shift target-shift))))))
 	(set! remaining-count (- remaining-count bit-count))
 	(bump-target! bit-count)
 	(bump-source! bit-count)))
@@ -248,11 +329,11 @@
       (bit-string-pack! left buf offset)
       (bit-string-pack! (splice-right x) buf (+ offset left-length))))))
 
-(define (flatten-to-bytes x min-width)
+(define (flatten-to-bytes x align-right?)
   (let-values (((byte-count bits-remaining)
-		(bit-string-byte-count/slop x)))
-    (let ((buf (make-bytes (max byte-count min-width) 0)))
-      (bit-string-pack! x buf 0)
+		(bit-string-byte-count+slop x)))
+    (let ((buf (make-bytes byte-count 0)))
+      (bit-string-pack! x buf (if align-right? bits-remaining 0))
       (if (zero? bits-remaining)
 	  buf
 	  (bit-slice buf 0 (bit-string-length x))))))
@@ -265,17 +346,100 @@
     (if (= (bytes-length (bit-slice-binary x))
 	   (bit-string-byte-count x))
 	x
-	(flatten-to-bytes x 0)))
+	(flatten-to-bytes x #f)))
    ((splice? x)
-    (flatten-to-bytes x 0))))
+    (flatten-to-bytes x #f))))
 
 (define (bit-string->bytes x)
-  (bit-string->bytes/pad x 0))
+  (bit-string->bytes/align x #f))
 
-(define (bit-string->bytes/pad x min-width)
+(define (bit-string->bytes/align x align-right?)
   (if (bytes? x)
       x
-      (let ((v (flatten-to-bytes x min-width)))
+      (let ((v (flatten-to-bytes x align-right?)))
 	(if (bit-slice? v)
 	    (bit-slice-binary v)
 	    v))))
+
+;; 1111 1111 1111 0000 0000 0000
+;;        -- ---- ----
+;;
+;; packed into bytes, yielding two bytes worth, and per the rules
+;; described above, the bits are copied left to right, so
+;;
+;; 1111 1100 0000 0000
+;; ---- ---- --
+(check-equal? (bit-string-pack (bit-slice (bytes 255 240 0) 6 16))
+	      (bit-slice (bytes 252 0) 0 10))
+(check-equal? (bit-string->bytes (bit-slice (bytes 255 240 0) 6 16))
+	      (bytes 252 0))
+
+;; Aligned right, that'll be
+;; 0000 0011 1111 0000
+;;        -- ---- ----
+(check-equal? (bit-string->bytes/align (bit-slice (bytes 255 240 0) 6 16) #t)
+	      (bytes 3 240))
+
+(define (bit-string->integer x big-endian? signed?)
+  (let ((width (bit-string-length x)))
+    (define (fix-signed value)
+      (cond
+       ((not signed?) value)
+       ((< value (arithmetic-shift 1 (sub1 width))) value)
+       (else (- value (arithmetic-shift 1 width)))))
+    (if big-endian?
+	(let* ((bs (bit-string->bytes/align x #t))
+	       (count (bytes-length bs)))
+	  (do ((i 0 (+ i 1))
+	       (acc 0 (bitwise-ior (arithmetic-shift acc 8)
+				   (bytes-ref bs i))))
+	      ((= i count) (fix-signed acc))))
+	(let* ((bs (bit-string->bytes/align x #f))
+	       (count (bytes-length bs)))
+	  (do ((i (- count 1) (- i 1))
+	       (acc 0 (bitwise-ior (arithmetic-shift acc 8)
+				   (bytes-ref bs i))))
+	      ((< i 0) (fix-signed acc)))))))
+
+(check-equal? (bit-string->integer (bytes 1 2 3 4) #t #f) #x01020304)
+(check-equal? (bit-string->integer (bytes 129 2 3 4) #t #f) #x81020304)
+(check-equal? (bit-string->integer (bytes 129 2 3 4) #t #t) (- #x81020304 #x100000000))
+(check-equal? (bit-string->integer (bytes 1 2 3 4) #f #f) #x04030201)
+(check-equal? (bit-string->integer (bytes 1 2 3 132) #f #f) #x84030201)
+(check-equal? (bit-string->integer (bytes 1 2 3 132) #f #t) (- #x84030201 #x100000000))
+
+(check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #f #f) 252)
+(check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #f #t) 252)
+(check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #t #f) 1008)
+(check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #t #t) -16)
+
+;; Signedness doesn't matter here - it only matters for decoding ints
+;; from bitstrings.
+(define (integer->bit-string n width big-endian?)
+  (let-values (((whole-bytes bits-remaining) (bits->bytes+slop width)))
+    (let ((bin (make-bytes whole-bytes)))
+      (if big-endian?
+	  (do ((i 0 (+ i 1)))
+	      ((= i whole-bytes)
+	       (sub-bit-string bin bits-remaining (* 8 whole-bytes)))
+	    (let ((low-bit (* (- whole-bytes i 1) 8)))
+	      (bytes-set! bin i (bitwise-bit-field n low-bit (+ low-bit 8)))))
+	  (do ((i 0 (+ i 1)))
+	      ((= i whole-bytes)
+	       (sub-bit-string bin 0 width))
+	    (let ((low-bit (* i 8)))
+	      (bytes-set! bin i (bitwise-bit-field n low-bit (+ low-bit 8)))))))))
+
+(check-equal? (integer->bit-string #x01020304 32 #t) (bytes 1 2 3 4))
+(check-equal? (integer->bit-string #x81020304 32 #t) (bytes 129 2 3 4))
+(check-equal? (integer->bit-string (- #x81020304 #x100000000) 32 #t) (bytes 129 2 3 4))
+(check-equal? (integer->bit-string #x04030201 32 #f) (bytes 1 2 3 4))
+(check-equal? (integer->bit-string #x84030201 32 #f) (bytes 1 2 3 132))
+(check-equal? (integer->bit-string (- #x84030201 #x100000000) 32 #f) (bytes 1 2 3 132))
+
+(check-equal? (integer->bit-string 252 10 #f)  (bit-slice (bytes 252 0) 0 10))
+(check-equal? (integer->bit-string 1008 10 #t) (bit-slice (bytes 3 240) 6 16))
+(check-equal? (integer->bit-string -16 10 #t)  (bit-slice (bytes 255 240) 6 16))
+;;                                                               ^^^
+;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are
+;; not part of the answer.
