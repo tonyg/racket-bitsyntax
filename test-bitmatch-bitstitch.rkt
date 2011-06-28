@@ -46,3 +46,13 @@
 (check-equal? (pascal->string/utf-8 #"\010abcdefgh") "abcdefgh")
 (check-equal? (bit-string-pack (string->pascal/utf-8 "abcdefgh"))
 	      #"\010abcdefgh")
+
+(check-equal? (bit-string (49152 :big-endian)) (bytes 0))
+(check-equal? (bit-string (49152 :little-endian)) (bytes 0))
+(check-equal? (bit-string (49152 :bits 16 :big-endian)) (bytes 192 0))
+(check-equal? (bit-string (49152 :bits 16 :little-endian)) (bytes 0 192))
+
+(check-equal? (bit-string [(inexact->exact 1.0)]) (bytes 1))
+(check-equal? (bit-string [1.0 :float]) (bytes 63 240 0 0 0 0 0 0))
+(check-equal? (bit-string [1.0 :float :bits 32]) (bytes 63 128 0 0))
+(check-equal? (bit-string [1.0 :float :little-endian]) (bytes 0 0 0 0 0 0 240 63))
