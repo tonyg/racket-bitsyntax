@@ -142,7 +142,7 @@
 (define (bit-string-split-at-or-false x offset)
   (let ((len (bit-string-length x)))
     (if (or (negative? offset)
-	    (> offset length))
+	    (> offset len))
 	(values #f #f)
 	(let split ((x x)
 		    (offset offset))
