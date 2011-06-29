@@ -298,7 +298,7 @@
 	(bump-source! bit-count)))
     ;; First, align the source to a byte boundary.
     (when (positive? source-shift)
-      (let ((source-left-overlap (- 8 source-shift))
+      (let ((source-left-overlap (min remaining-count (- 8 source-shift)))
 	    (remaining-in-first-target-byte (- 8 target-shift)))
 	(if (> source-left-overlap remaining-in-first-target-byte)
 	    (begin (shuffle! remaining-in-first-target-byte)
@@ -328,6 +328,13 @@
 	    (shuffle! remaining-count))))
     ;; We're finally done.
     ))
+
+(check-equal? (let ((buf (bytes 0))) (copy-bits! buf 4 (bytes 255 255 255) 17 4) buf)
+	      (bytes 15))
+(check-equal? (let ((buf (bytes 0 0 0 0)))
+		(copy-bits! buf 6 (bytes 255 255 255 255) 2 12)
+		buf)
+	      (bytes #b00000011 #b11111111 #b11000000 #b00000000))
 
 (define (bit-string-pack! x buf offset)
   (cond
