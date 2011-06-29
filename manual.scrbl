@@ -318,3 +318,151 @@ written as follows:
 
 @subsection{Bit string utilities}
 
+@defproc[(bit-string? [x any?]) boolean?]{
+Returns @racket[#t] if its argument is either a @racket[bytes?], a
+@racket[bit-slice?] or a @racket[splice?]. Returns @racket[#f]
+otherwise.}
+
+@defproc[(bit-string-length [x bit-string?]) integer?]{
+Returns the length of its argument, in bits.}
+
+@defproc[(bit-string-empty? [x bit-string?]) boolean?]{
+Returns @racket[#t] if its argument's @racket[bit-string-length] is
+zero.}
+
+@defproc[(bit-string-append [a bit-string?]
+			    [b bit-string?]) bit-string?]{
+Appends its arguments, producing a new bit string. Uses
+@racket[splice] internally when it can't arrange to return a bit
+string previously constructed. (The practical upshot of this is that
+you might need to use @racket[bit-string->bytes] to "flatten" appended
+bit-strings from time to time.)}
+
+@defproc[(bit-string-split-at [x bit-string?]
+			      [offset integer?]) (values bit-string? bit-string?)]{
+
+Produces two values: the bit-string containing bits
+[@racket[0]..@racket[offset]) of @racket[x], and the bit-string
+containing bits [@racket[offset]..@racket[(bit-string-length x)]) of
+@racket[x]. If offset is negative or greater-or-equal-to the number of
+bits in @racket[x], an error is signalled.}
+
+@defproc[(bit-string-split-at-or-false [x bit-string?]
+				       [offset integer?])
+         (values (or/c bit-string? #f) (or/c bit-string? #f))]{
+
+Like @racket[(bit-string-split-at x offset)], but if @racket[offset]
+is out of range returns @racket[(values #f #f)] instead of signalling
+an error. This procedure is used in the implementation of
+@racket[bit-string-case].}
+
+@defproc[(sub-bit-string [x bit-string?]
+			 [low-bit integer?]
+			 [high-bit integer?]) bit-string?]{
+
+If @racket[(<= 0 low-bit high-bit (sub1 (bit-string-length x)))],
+returns the bit-string containing bits
+[@racket[low-bit]..@racket[high-bit]) of @racket[x]. Otherwise,
+signals an error.}
+
+@defproc[(bit-string-ref [x bit-string?] [offset integer?]) (or/c 0 1)]{
+
+Extracts bit number @racket[offset] from @racket[x]. Signals an error
+if @racket[offset] is negative or greater-than-or-equal-to the length
+of @racket[x].}
+
+@defproc[(bit-string->bytes [x bit-string?]) bytes?]{
+
+Flattens any splices or bit-slices in @racket[x], producing a single
+contiguous byte vector with @racket[x]'s contents. If
+@racket[(positive? (remainder (bit-string-length x) 8))], pads out the
+remaining bits with zeros on the right.}
+
+@defproc[(bit-string->bytes/align [x bit-string?] [align-right? boolean?]) bytes?]{
+
+As @racket[bit-string->bytes], but offers the choice of padding on the
+right (if @racket[align-right?] is @racket[#f]) or on the left (if
+@racket[align-right?] is @racket[#t]) when padding is required. (Note
+that to align the bits in @racket[x] on the right is to pad with zeros
+on the left, and vice versa.)}
+
+@defproc[(bit-string-byte-count [x bit-string?]) integer?]{
+
+Returns the smallest number of whole bytes that could contain all the
+bits in @racket[x].}
+
+@defproc[(bit-string-pack! [x bit-string?]
+			   [buf bytes?]
+			   [offset integer?]) void?]{
+
+Copies the entirety of @racket[x] into @racket[buf], overwriting bits
+starting with the @racket[offset]th. It is an error for @racket[buf]
+not to have enough room or for @racket[offset] to be out-of-bounds.}
+
+@defproc[(bit-string-pack [x bit-string?]) bit-string?]{
+
+Returns a bit string equivalent to @racket[x] (i.e. with exactly the
+same bits in the same order) but with any intermediate splices or
+bit-slices flattened away. The result will either be a @racket[bytes?]
+of the correct length, or a @racket[bit-slice] referring to a section
+of a byte vector of length @racket[(bit-string-byte-count x)].}
+
+@defproc[(copy-bits! [target bit-string?]
+		     [target-offset integer?]
+		     [source bit-string?]
+		     [source-offset integer?]
+		     [count integer?]) void?]{
+
+Overwrites bits [@racket[target-offset]..@racket[(+ target-offset
+count)]) of @racket[target] with bits
+[@racket[source-offset]..@racket[(+ source-offset count)]) of
+@racket[source]. Undefined behaviour results when @racket[(eq? target
+source)].}
+
+@defproc[(bit-string->integer [x bit-string?]
+			      [big-endian? boolean?]
+			      [signed? boolean?]) integer?]{
+
+Interprets the bits in @racket[x] as an integer, using either a big-
+or little-endian byte-ordering convention (per @racket[big-endian?]),
+and either unsigned or two's-complement signed arithmetic (per
+@racket[signed?]) to produce the result.}
+
+@defproc[(integer->bit-string [n integer?]
+			      [width integer?]
+			      [big-endian? boolean?]) bit-string?]{
+
+Encodes @racket[n] as a bit string of length @racket[width] bits,
+truncating or sign-extending as required, and using a big- or
+little-endian byte-ordering convention as per @racket[big-endian?].}
+
+@subsection{Debugging utilities}
+
+These procedures may be useful for debugging, but should not be relied
+upon otherwise.
+
+@defproc[(bit-slice? [x any?]) boolean?]{
+
+Returns @racket[#t] if and only if @racket[x] is a bit-slice.}
+
+@defproc[(bit-slice-binary [x bit-slice?]) bytes?]{
+
+Extracts the underlying byte vector from a bit-slice.}
+
+@defproc[(bit-slice-low-bit [x bit-slice?]) integer?]
+@defproc[(bit-slice-high-bit [x bit-slice?]) integer?]{
+
+Extract the low (inclusive) and high (exclusive) bit indexes,
+respectively, from a bit-slice. The bit-slice itself represents bits
+[@racket[low]..@racket[high]) of the underlying byte vector.}
+
+@defproc[(splice? [x any?]) boolean?]{
+
+Returns @racket[#t] if and only if @racket[x] is a splice of two
+bit-strings.}
+
+@defproc[(splice-left [x splice?]) bit-string?]
+@defproc[(splice-right [x splice?]) bit-string?]{
+
+Extract the left and right bit-strings, respectively, that are spliced
+together by the given splice @racket[x].}
