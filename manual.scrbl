@@ -3,7 +3,7 @@
 @(require planet/scribble
 	  scribble/racket
 	  (for-label racket
-		     "main.rkt"))
+		     (this-package-in main)))
 
 @title{racket-bitsyntax}
 @author[(author+email "Tony Garnock-Jones" "tonygarnockjones@gmail.com")]
