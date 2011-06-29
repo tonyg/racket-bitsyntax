@@ -79,6 +79,12 @@
       (bit-slice? x)
       (splice? x)))
 
+(check-equal? (bit-string? "hello") #f)
+(check-equal? (bit-string? 123) #f)
+(check-equal? (bit-string? #"hello") #t)
+(check-equal? (bit-string? (bit-slice #"hello" 2 4)) #t)
+(check-equal? (bit-string? (splice 0 (bytes) (bytes))) #t)
+
 (define (bit-string-empty? x)
   (zero? (bit-string-length x)))
 
@@ -87,6 +93,9 @@
    ((bytes? x) (* 8 (bytes-length x)))
    ((bit-slice? x) (- (bit-slice-high-bit x) (bit-slice-low-bit x)))
    ((splice? x) (splice-length x))))
+
+(check-equal? (bit-string-empty? (bytes)) #t)
+(check-equal? (bit-string-empty? (bytes 1)) #f)
 
 (check-equal? (bit-string-length (bytes)) 0)
 (check-equal? (bit-string-length (bytes 255)) 8)
@@ -152,6 +161,8 @@
 	      (splice 5
 		      (bit-slice (bytes 255) 1 4)
 		      (bit-slice (bytes 255) 4 6)))
+
+(check-equal? (bit-string-length (bit-string-append (bytes 1) (bytes 2))) 16)
 
 (define (bit-string-split-at-or-false x offset)
   (let ((len (bit-string-length x)))
@@ -350,6 +361,11 @@
       (bit-string-pack! left buf offset)
       (bit-string-pack! (splice-right x) buf (+ offset left-length))))))
 
+(check-equal? (let ((buf (bytes 0 0 0 0)))
+		(bit-string-pack! (bytes 255) buf 4)
+		buf)
+	      (bytes 15 240 0 0))
+
 (define (flatten-to-bytes x align-right?)
   (let-values (((byte-count bits-remaining)
 		(bit-string-byte-count+slop x)))
@@ -370,6 +386,12 @@
 	(flatten-to-bytes x #f)))
    ((splice? x)
     (flatten-to-bytes x #f))))
+
+(check-equal? (bit-string-pack (bytes 1)) (bytes 1))
+(check-equal? (bit-string-pack (bit-slice (bytes 255 255) 2 14))
+	      (bit-slice (bytes 255 255) 2 14))
+(check-equal? (bit-string-pack (bit-slice (bytes 255 255) 2 4))
+	      (bit-slice (bytes 192) 0 2))
 
 (define (bit-string->bytes x)
   (bit-string->bytes/align x #f))
@@ -464,3 +486,30 @@
 ;;                                                               ^^^
 ;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are
 ;; not part of the answer.
+
+(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) -2)))
+		(or a b))
+	      #f)
+(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 2)))
+		(and (equal? (bit-string->bytes/align a #t) (bytes 0))
+		     (equal? (bit-string->bytes/align b #t) (bytes 1))))
+	      #t)
+(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 20)))
+		(or a b))
+	      #f)
+
+(check-equal? (bit-string-ref (bit-string-append (bytes 4) (bytes 0)) 5) 1)
+(check-equal? (bit-string-ref (bit-string-append (bytes 0) (bytes 4)) 13) 1)
+
+(check-equal? (bit-string->bytes (sub-bit-string (sub-bit-string (bytes 255) 1 6)
+						 1 4))
+	      (bytes #xe0))
+
+(check-equal? (bit-string->bytes
+	       (sub-bit-string (bit-string-append (bytes 1) (bytes 2)) 0 8))
+	      (bytes 1))
+(check-equal? (bit-string-pack (sub-bit-string
+				(bit-string-append (bytes 1)
+						   (bit-slice (bytes 255) 1 6))
+				4 12))
+	      (bytes 31))
