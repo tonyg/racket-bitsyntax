@@ -318,9 +318,8 @@ Returns the length of its argument, in bits.}
 Returns @racket[#t] if its argument's @racket[bit-string-length] is
 zero.}
 
-@defproc[(bit-string-append [a bit-string?]
-			    [b bit-string?]) bit-string?]{
-Appends its arguments, producing a new bit string. Uses
+@defproc[(bit-string-append [a bit-string?] ...) bit-string?]{
+Appends its arguments in order, producing a new bit string. Uses
 @racket[splice] internally when it can't arrange to return a bit
 string previously constructed. (The practical upshot of this is that
 you might need to use @racket[bit-string->bytes] to "flatten" appended

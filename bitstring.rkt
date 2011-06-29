@@ -117,7 +117,7 @@
 (check-equal? (abutting? (bit-slice abutting-test-binary 4 6)
 			 (bit-slice abutting-test-binary 1 4)) #f)
 
-(define (bit-string-append a b)
+(define (bit-string-append-2 a b)
   (if (abutting? a b)
       (if (= (bit-string-length (bit-slice-binary a))
 	     (+ (bit-string-length a) (bit-string-length b)))
@@ -127,8 +127,22 @@
 		     (bit-slice-high-bit b)))
       (splice (+ (bit-string-length a) (bit-string-length b)) a b)))
 
+(define bit-string-append
+  (case-lambda
+   [(a b) (bit-string-append-2 a b)]
+   [(a . rest)
+    (foldl (lambda (rhs lhs) (bit-string-append-2 lhs rhs))
+	   a
+	   rest)]))
+
+(check-equal? (bit-string-append abutting-test-binary)
+	      abutting-test-binary)
 (check-equal? (bit-string-append (bit-slice abutting-test-binary 0 4)
 				 (bit-slice abutting-test-binary 4 8))
+	      abutting-test-binary)
+(check-equal? (bit-string-append (bit-slice abutting-test-binary 0 4)
+				 (bit-slice abutting-test-binary 4 6)
+				 (bit-slice abutting-test-binary 6 8))
 	      abutting-test-binary)
 (check-equal? (bit-string-append (bit-slice abutting-test-binary 1 4)
 				 (bit-slice abutting-test-binary 4 6))
