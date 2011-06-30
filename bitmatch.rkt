@@ -116,7 +116,8 @@
       ((_ value (else body ...))
        (syntax (begin body ...)))
       ((_ value)
-       (syntax (error 'bit-string-case "No matching clauses for ~v" value)))
+       (syntax (error 'bit-string-case "No matching clauses for ~v"
+		      (bit-string-pack value))))
       ((_ value ((pattern-clause ...) body-and-guard ...) clause ...)
        (with-syntax ([tval (syntax-case (syntax (body-and-guard ...)) (when else)
 			     (((when guard-exp) body ...)
