@@ -48,7 +48,7 @@
 (require "bitstx.rkt")
 (require "bitstring.rkt")
 
-(provide bit-string-case)
+(provide :: bit-string-case)
 
 (define-syntax bit-string-case
   (syntax-rules ()

@@ -17,7 +17,7 @@
 (require "bitstx.rkt")
 (require "bitstring.rkt")
 
-(provide bit-string)
+(provide :: bit-string)
 
 (define-syntax bit-string
   (syntax-rules ()
