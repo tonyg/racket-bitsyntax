@@ -2,7 +2,7 @@ PLANET_VERSION=3.0
 
 all:
 
-bitsyntax.plt:
+bitsyntax.plt: clean
 	mkdir planet-build-temp
 	(cd planet-build-temp; git clone .. bitsyntax)
 	(cd planet-build-temp/bitsyntax; git checkout bitsyntax.plt-${PLANET_VERSION})

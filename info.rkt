@@ -3,9 +3,6 @@
 (define blurb
   (list
    `(p "Erlang-like binary pattern-matching and bit string manipulation for Racket")))
-(define release-notes
-  (list
-   `(ul (li "Initial release"))))
 (define categories '(net))
 (define can-be-loaded-with 'all)
 (define homepage "https://github.com/tonyg/racket-bitsyntax")
