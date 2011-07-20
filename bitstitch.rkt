@@ -1,19 +1,20 @@
 #lang racket/base
 
-;; (bit-string (IP-VERSION : bits 4)
-;;             (header-length : bits 4)
+;; (bit-string (IP-VERSION :: bits 4)
+;;             (header-length :: bits 4)
 ;;             service-type
-;;             (total-length : bits 16)
-;;             (id : bits 16)
-;;             (flags : bits 3)
-;;             (fragment-offset : bits 13)
+;;             (total-length :: bits 16)
+;;             (id :: bits 16)
+;;             (flags :: bits 3)
+;;             (fragment-offset :: bits 13)
 ;;             ttl
 ;;             protocol
-;;             (header-checksum : bits 16)
-;;             (source-ip : bits 32)
-;;             (destination-ip : bits 32)
-;;             (rest : binary))
+;;             (header-checksum :: bits 16)
+;;             (source-ip :: bits 32)
+;;             (destination-ip :: bits 32)
+;;             (rest :: binary))
 
+(require "bitstx.rkt")
 (require "bitstring.rkt")
 
 (provide bit-string)
@@ -28,8 +29,8 @@
      (bit-string-append (parse-spec spec0) (bit-string specs ...)))))
 
 (define-syntax parse-spec
-  (syntax-rules (:)
-    ((_ (expr : option ...))
+  (syntax-rules (::)
+    ((_ (expr :: option ...))
      (parse-options (option ...) expr))
     ((_ expr)
      (parse-options () expr))))

@@ -43,6 +43,14 @@ introduction to these features:
   syntax} in the Programming Examples Manual}
 ]
 
+@section{Changes}
+
+Version 3.0 of this library uses @racket[::] instead of @racket[:] to
+separate expressions from encoding specifications in the
+@racket[bit-string-case] and @racket[bit-string] macros. The reason
+for this is to avoid a collision with Typed Racket, which uses
+@racket[:] for its own purposes.
+
 @section{What is a bit string?}
 
 A bit string is either
@@ -76,7 +84,7 @@ All the functionality below can be accessed with a single
 @subsection{Pattern-matching bit strings}
 
 @defform/subs[#:literals (when else
-			  = :
+			  = ::
 			  binary integer float
 			  signed unsigned
 			  little-endian big-endian native-endian
@@ -92,12 +100,12 @@ All the functionality below can be accessed with a single
 	       (segment-pattern comparison-pattern
 				binding-pattern
 				discard-pattern)
-	       (comparison-pattern (= expr : option ...)
+	       (comparison-pattern (= expr :: option ...)
 				   (= expr))
-	       (binding-pattern (id : option ...)
+	       (binding-pattern (id :: option ...)
 				(id)
 				id)
-	       (discard-pattern (: option ...))
+	       (discard-pattern (:: option ...))
 	       (option type-option
 		       signedness-option
 		       endianness-option
@@ -193,13 +201,13 @@ For example:
 
 @racketblock[
 	     (bit-string-case some-input-value
-	       ([(= 0 : bytes 2)] 'a)
-	       ([(f : bits 10) (: binary)]
+	       ([(= 0 :: bytes 2)] 'a)
+	       ([(f :: bits 10) (:: binary)]
 		(when (and (< f 123) (>= f 100)))
 		'between-100-and-123)
-	       ([(f : bits 10) (: bits 6)]
+	       ([(f :: bits 10) (:: bits 6)]
 		f)
-	       ([(f : bits 10) (: bits 6) (rest : binary)]
+	       ([(f :: bits 10) (:: bits 6) (rest :: binary)]
 		(list f rest)))
 ]
 
@@ -233,7 +241,7 @@ a UTF-8 codec:
 
 @racketblock[
 	     (bit-string-case input-bit-string
-	       ([len (body : binary bytes len)]
+	       ([len (body :: binary bytes len)]
 		(bytes->string/utf-8 (bit-string-pack body))))
 ]
 
@@ -245,12 +253,12 @@ consume.
 
 @subsection{Assembling bit strings from pieces}
 
-@defform/subs[#:literals (:
+@defform/subs[#:literals (::
 			  binary integer float
 			  little-endian big-endian native-endian
 			  bytes bits default)
 	      (bit-string spec ...)
-	      ((spec [segment-expr : option ...]
+	      ((spec [segment-expr :: option ...]
 		     segment-expr)
 	       (option type-option
 		       endianness-option
@@ -288,7 +296,7 @@ For example:
 @racketblock[
 	     (define (string->pascal/utf-8 str)
 	       (let ((bs (string->bytes/utf-8 str)))
-		 (bit-string (bytes-length bs) [bs : binary])))
+		 (bit-string (bytes-length bs) [bs :: binary])))
 ]
 
 This subroutine encodes its string argument using a UTF-8 codec, and
@@ -299,7 +307,7 @@ better encoder would ensure that @racket[bs] was not longer than 255
 bytes before encoding it as a Pascal string.
 
 Note that if you wish to leave all the options at their defaults (that
-is, @racket[[... : integer bits 8]]), you can use the second form of
+is, @racket[[... :: integer bits 8]]), you can use the second form of
 @racket[spec] given above.
 
 }
