@@ -1,4 +1,14 @@
+PLANET_VERSION=3.0
+
 all:
+
+bitsyntax.plt:
+	mkdir planet-build-temp
+	(cd planet-build-temp; git clone .. bitsyntax)
+	(cd planet-build-temp/bitsyntax; git checkout bitsyntax.plt-${PLANET_VERSION})
+	(cd planet-build-temp; raco planet create bitsyntax)
+	mv planet-build-temp/bitsyntax.plt .
+	rm -rf planet-build-temp
 
 manual.html: manual.scrbl
 	raco scribble $<
