@@ -62,7 +62,6 @@
 	 copy-bits!
 	 bit-string-pack!
 	 bit-string-pack
-	 bit-string-pack
 	 bit-string->bytes
 	 bit-string->bytes/align
 	 bit-string->integer
