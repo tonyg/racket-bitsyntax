@@ -34,3 +34,8 @@ Here's a Racket equivalent of the example given in the Erlang documentation:
             'datagram-valid))))
       [else
        'datagram-not-valid])
+
+A rendered version of the documentation for this library is available
+on [PLaneT](http://planet.racket-lang.org/):
+
+ - <http://planet.racket-lang.org/package-source/tonyg/bitsyntax.plt/3/2/planet-docs/manual/index.html>
