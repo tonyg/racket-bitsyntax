@@ -238,6 +238,9 @@
   (when (> high-bit (bit-string-length x))
     (error 'sub-bit-string
 	   "High bit must be less than or equal to bit string length: ~v" high-bit))
+  (when (< high-bit low-bit)
+    (error 'sub-bit-string "High bit ~v must be greater than or equal to low bit ~v"
+	   high-bit low-bit))
   (cond
    ((bytes? x)
     (if (and (zero? low-bit)
@@ -503,6 +506,9 @@
 (check-equal? (bit-string->bytes (sub-bit-string (sub-bit-string (bytes 255) 1 6)
 						 1 4))
 	      (bytes #xe0))
+
+(check-exn #rx"High bit 1 must be greater than or equal to low bit 6"
+	   (lambda () (sub-bit-string (bytes 255) 6 1)))
 
 (check-equal? (bit-string->bytes
 	       (sub-bit-string (bit-string-append (bytes 1) (bytes 2)) 0 8))
