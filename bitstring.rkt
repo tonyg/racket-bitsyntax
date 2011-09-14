@@ -67,12 +67,18 @@
 	 bit-string->integer
 	 integer->bit-string)
 
+;; A section of a Bytes. Bits [low-bit,high-bit) from binary are
+;; included in the slice.
 (struct bit-slice (binary low-bit high-bit)
 	#:transparent)
 
+;; A join of two Bitstrings. The length is maintained to improve the
+;; time complexity of certain algorithms.
 (struct splice (length left right)
 	#:transparent)
 
+;; bit-string? : Any -> Boolean
+;; Predicate for Bitstrings.
 (define (bit-string? x)
   (or (bytes? x)
       (bit-slice? x)
@@ -84,9 +90,13 @@
 (check-equal? (bit-string? (bit-slice #"hello" 2 4)) #t)
 (check-equal? (bit-string? (splice 0 (bytes) (bytes))) #t)
 
+;; bit-string-empty? : Bitstring -> Boolean
+;; True iff the given bitstring contains no bits.
 (define (bit-string-empty? x)
   (zero? (bit-string-length x)))
 
+;; bit-string-length : Bitstring -> Natural
+;; Returns the number of bits in the given bitstring.
 (define (bit-string-length x)
   (cond
    ((bytes? x) (* 8 (bytes-length x)))
@@ -103,6 +113,10 @@
 (check-equal? (bit-string-length (bit-slice (bytes 255) 1 4)) 3)
 (check-equal? (bit-string-length (bit-slice (bytes 10) 1 4)) 3)
 
+;; abutting? : Bitstring Bitstring -> Boolean
+;; True iff both arguments are slices of the same underlying Bytes,
+;; and a's high-bit is the same as b's low-bit. Used to detect when an
+;; underlying Bytes can safely be reused in an append operation.
 (define (abutting? a b)
   (and (bit-slice? a)
        (bit-slice? b)
@@ -125,6 +139,8 @@
 (check-equal? (abutting? (bit-slice abutting-test-binary 4 6)
 			 (bit-slice abutting-test-binary 1 4)) #f)
 
+;; bit-string-append-2 : Bitstring Bitstring -> Bitstring
+;; 2ary Bitstring append operator.
 (define (bit-string-append-2 a b)
   (if (abutting? a b)
       (if (= (bit-string-length (bit-slice-binary a))
@@ -135,6 +151,8 @@
 		     (bit-slice-high-bit b)))
       (splice (+ (bit-string-length a) (bit-string-length b)) a b)))
 
+;; bit-string-append : Bitstring ... -> Bitstring
+;; Nary Bitstring append operator.
 (define bit-string-append
   (case-lambda
    [(a b) (bit-string-append-2 a b)]
@@ -163,6 +181,12 @@
 
 (check-equal? (bit-string-length (bit-string-append (bytes 1) (bytes 2))) 16)
 
+;; bit-string-split-at-or-false
+;;  : Bitstring Natural -> (values Maybe<Bitstring> Maybe<Bitstring>)
+;; Returns the left- and right-hand portions of x split so that bit
+;; number offset is excluded from the left hand side and included in
+;; the right hand side. Returns (values #f #f) if offset is
+;; out-of-range for x.
 (define (bit-string-split-at-or-false x offset)
   (let ((len (bit-string-length x)))
     (if (or (negative? offset)
@@ -196,12 +220,18 @@
 		  (values (splice offset original-left mid)
 			  right)))))))))))
 
+;; bit-string-split-at : Bitstring Natural -> (values Bitstring Bitstring)
+;; As bit-string-split-at-or-false, but raises an exception if offset
+;; is out-of-bounds instead of returning (values #f #f).
 (define (bit-string-split-at x offset)
   (let-values (((lhs rhs) (bit-string-split-at-or-false x offset)))
     (if (not lhs)
 	(error 'bit-string-split-at "Split point negative or beyond length of string: ~v" offset)
 	(values lhs rhs))))
 
+;; bit-string-ref : Bitstring Natural -> Either<0,1>
+;; Retrieves a single bit at the given offset from the given bitstring.
+;; Raises an exception if the offset is out-of-bounds.
 (define (bit-string-ref x offset)
   (when (negative? offset)
     (error 'bit-string-ref "Offset must be non-negative: ~v" offset))
@@ -232,6 +262,10 @@
 (check-equal? (bit-string-ref (bit-slice (bytes #x20) 2 3) 0) 1)
 (check-equal? (bit-string-ref (bit-slice (bytes #x40) 2 3) 0) 0)
 
+;; sub-bit-string : Bitstring Natural Natural -> Bitstring
+;; Retrieves a section of the given bitstring, starting and ending at
+;; the given offsets. low-bit is inclusive, high-bit exclusive.
+;; Raises an exception if low-bit or high-bit are out of bounds.
 (define (sub-bit-string x low-bit high-bit)
   (when (negative? low-bit)
     (error 'sub-bit-string "Low bit must be non-negative: ~v" low-bit))
@@ -257,9 +291,15 @@
       (let-values (((mid right) (bit-string-split-at mid (- high-bit low-bit))))
 	mid)))))
 
+;; bits->bytes : Natural -> Natural
+;; Returns the smallest number of whole bytes having together no fewer
+;; than bit-count bits.
 (define (bits->bytes bit-count)
   (quotient (+ 7 bit-count) 8))
 
+;; bit-string-byte-count : Bitstring -> Natural
+;; Returns the smallest number of whole bytes long enough to contain
+;; all the bits in the argument.
 (define (bit-string-byte-count x)
   (bits->bytes (bit-string-length x)))
 
@@ -268,11 +308,16 @@
 (check-equal? (bit-string-byte-count (bit-slice (bytes #xff #x00) 6 16)) 2)
 (check-equal? (bit-string-byte-count (bit-slice (bytes #xff #x00) 6 14)) 1)
 
+;; bits->bytes+slop : Natural -> (values Natural Natural)
+;; As for bits->bytes, but also returns, as the second value, the
+;; number of bits "left over" in the resulting number of bytes.
 (define (bits->bytes+slop bit-count)
   (let* ((byte-count (quotient (+ 7 bit-count) 8))
 	 (slop (- (* 8 byte-count) bit-count)))
     (values byte-count slop)))
 
+;; bit-string-byte-count+slop : Bitstring -> (values Natural Natural)
+;; Is to bit-string-byte-count as bits->bytes+slop is to bits->bytes.
 (define (bit-string-byte-count+slop x)
   (bits->bytes+slop (bit-string-length x)))
 
@@ -281,9 +326,15 @@
 		(list b s))
 	      (list 2 6))
 
+;; bit-mask : Natural -> Natural
+;; Returns the sum of 2^0 ... 2^(width-1).
 (define (bit-mask width)
   (sub1 (arithmetic-shift 1 width)))
 
+;; copy-bits! MutableBytes Natural Bytes Natural Natural -> Void
+;; Destructively updates its first argument, replacing bits numbered
+;; [target-offset, target-offset + remaining-count) with bits numbered
+;; [source-offset, source-offset + remaining-count) taken from source.
 (define (copy-bits! target target-offset source source-offset remaining-count)
   (let-values (((target-byte target-shift) (quotient/remainder target-offset 8))
 	       ((source-byte source-shift) (quotient/remainder source-offset 8)))
@@ -349,6 +400,10 @@
 		buf)
 	      (bytes #b00000011 #b11111111 #b11000000 #b00000000))
 
+;; bit-string-pack! : Bitstring MutableBytes Natural -> Void
+;; Copies the whole of x into buf, so that when it returns,
+;; (sub-bit-string buf offset (+ offset (bit-string-length x)))
+;; is equal to x.
 (define (bit-string-pack! x buf offset)
   (cond
    ((bytes? x)
@@ -368,6 +423,12 @@
 		buf)
 	      (bytes 15 240 0 0))
 
+;; flatten-to-bytes : Bitstring Boolean -> Bitstring
+;; Returns a Bitstring logically identical to its argument, but
+;; physically stored in a contiguous underlying Bytes. If align-right?
+;; is false, padding zeros (if any) will appear at the highest bits in
+;; the resulting byte array; if align-right? is true, padding zeros
+;; will appear at the lowest bits in the resulting byte array.
 (define (flatten-to-bytes x align-right?)
   (let-values (((byte-count bits-remaining)
 		(bit-string-byte-count+slop x)))
@@ -377,6 +438,11 @@
 	  buf
 	  (bit-slice buf 0 (bit-string-length x))))))
 
+;; bit-string-pack : Bitstring -> Bitstring
+;; Returns a Bitstring logically identical to its argument, but
+;; physically stored in a contiguous underlying Bytes. Padding zeros
+;; (if any) will appear at the highest bits in the resulting byte
+;; array.
 (define (bit-string-pack x)
   (cond
    ((bytes? x)
@@ -395,9 +461,15 @@
 (check-equal? (bit-string-pack (bit-slice (bytes 255 255) 2 4))
 	      (bit-slice (bytes 192) 0 2))
 
+;; bit-string->bytes : Bitstring -> Bytes
+;; Equivalent to (bit-string->bytes/align x #f). (See below.)
 (define (bit-string->bytes x)
   (bit-string->bytes/align x #f))
 
+;; bit-string->bytes/align : Bitstring Boolean -> Bytes
+;; Returns a Bytes equivalent to x, padded if necessary with zero bits
+;; to the left if align-right? is true, or to the right if
+;; align-right? is false.
 (define (bit-string->bytes/align x align-right?)
   (if (bytes? x)
       x
@@ -425,6 +497,10 @@
 (check-equal? (bit-string->bytes/align (bit-slice (bytes 255 240 0) 6 16) #t)
 	      (bytes 3 240))
 
+;; bit-string->integer : Bitstring Boolean Boolean -> Integer
+;; Extract an arbitrary-width two's-complement integer from a
+;; bitstring. Big-endian byte ordering is used iff big-endian? is
+;; true. A signed interpretation is used iff signed? is true.
 (define (bit-string->integer x big-endian? signed?)
   (let ((width (bit-string-length x)))
     (define (fix-signed value)
@@ -458,8 +534,10 @@
 (check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #t #f) 1008)
 (check-equal? (bit-string->integer (bit-slice (bytes 255 240 0) 6 16) #t #t) -16)
 
-;; Signedness doesn't matter here - it only matters for decoding ints
-;; from bitstrings.
+;; integer->bit-string : Integer Natural Boolean -> Bitstring
+;; Encodes an integer as a Bitstring of a given width using the given
+;; byte ordering. Signedness doesn't matter here - it only matters
+;; for decoding ints from bitstrings.
 (define (integer->bit-string n width big-endian?)
   (let-values (((whole-bytes bits-remaining) (bits->bytes+slop width)))
     (let ((bin (make-bytes whole-bytes)))
