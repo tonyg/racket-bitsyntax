@@ -262,6 +262,11 @@
 (check-equal? (bit-string-ref (bit-slice (bytes #x20) 2 3) 0) 1)
 (check-equal? (bit-string-ref (bit-slice (bytes #x40) 2 3) 0) 0)
 
+(check-exn #rx"Offset must be non-negative"
+	   (lambda () (bit-string-ref (bytes #xff) -1)))
+(check-exn #rx"Offset must be less than or equal to bit string length"
+	   (lambda () (bit-string-ref (bytes #xff) 100)))
+
 ;; sub-bit-string : Bitstring Natural Natural -> Bitstring
 ;; Retrieves a section of the given bitstring, starting and ending at
 ;; the given offsets. low-bit is inclusive, high-bit exclusive.
@@ -567,6 +572,9 @@
 ;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are
 ;; not part of the answer.
 
+(check-exn #rx"Split point negative or beyond length of string"
+	   (lambda () (bit-string-split-at (bytes #xff) 100)))
+
 (check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) -2)))
 		(or a b))
 	      #f)
@@ -584,6 +592,12 @@
 (check-equal? (bit-string->bytes (sub-bit-string (sub-bit-string (bytes 255) 1 6)
 						 1 4))
 	      (bytes #xe0))
+
+(check-exn #rx"Low bit must be non-negative"
+	   (lambda () (sub-bit-string (bytes 255) -1 6)))
+
+(check-exn #rx"High bit must be less than or equal to bit string length"
+	   (lambda () (sub-bit-string (bytes 255) 1 60)))
 
 (check-exn #rx"High bit 1 must be greater than or equal to low bit 6"
 	   (lambda () (sub-bit-string (bytes 255) 6 1)))
