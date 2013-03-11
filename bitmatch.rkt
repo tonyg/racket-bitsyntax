@@ -168,7 +168,7 @@
     ((_ value tval fthunk (( action type signedness endianness width )
 			   remaining-clauses ...))
      (let-values (((lhs rhs) (bit-string-split-at-or-false value width)))
-       (if (not lhs)
+       (if (or (not lhs) (not rhs))
 	   (fthunk)
 	   (let ((this-value (bit-string-case-extract-value
 			      lhs type signedness endianness width)))
