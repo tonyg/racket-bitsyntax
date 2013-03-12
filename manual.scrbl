@@ -50,6 +50,12 @@ domain-specific binary encodings of values.
 
 @section{Changes}
 
+Version 4.0 of this library changes the way custom parsers and
+formatters work, requiring them to be macros, where in previous
+releases they could have been implemented as functions. Version 4.0 of
+the library also supports the use of @racket[bit-string-case] and
+@racket[bit-string] in Typed Racket code.
+
 Version 3.2 of this library adds support for custom parsers and
 formatters.
 
@@ -88,6 +94,12 @@ All the functionality below can be accessed with a single
 @racket[require]:
 
 @(defmodule/this-package main)
+
+@subsection{Types}
+
+@defidform[BitString]{The Typed Racket type of bit strings. A value
+has type @racket[BitString] if and only if it also results in
+@racket[#t] when given to @racket[bit-string?].}
 
 @subsection{Pattern-matching bit strings}
 
@@ -396,28 +408,26 @@ formatter together, we can improve the situation enormously:
 @racketblock[
 	     (define-syntax pascal-string/utf-8
 	       (syntax-rules ()
-		 [(_ #t)
+		 [(_ #t input ks kf)
 		  (code:comment "The first argument to the custom parser/formatter")
 		  (code:comment "will be a literal #t to signal it is being used")
 		  (code:comment "as a parser.")
-		  (lambda (input ks kf)
-		    (bit-string-case input
-		      ([len (body :: binary bytes len) (rest :: binary)]
-		       (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
-		      (else
-		       (kf))))]
-		 [(_ #f)
+		  (bit-string-case input
+		    ([len (body :: binary bytes len) (rest :: binary)]
+		     (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
+		    (else
+		     (kf)))]
+		 [(_ #f str)
 		  (code:comment "The first argument to the custom parser/formatter")
 		  (code:comment "will be a literal #f to signal it is being used")
 		  (code:comment "as a formatter.")
-		  (lambda (str)
-		    (let* ((bs (string->bytes/utf-8 str))
-			   (len (bytes-length bs)))
-		      (when (> len 255)
-			(error 'pascal-string/utf-8
-			       "String of length ~v too long; max is 255 bytes"
-			       len))
-		      (bit-string len (bs :: binary))))]))
+		  (let* ((bs (string->bytes/utf-8 str))
+			 (len (bytes-length bs)))
+		    (when (> len 255)
+		      (error 'pascal-string/utf-8
+			     "String of length ~v too long; max is 255 bytes"
+			     len))
+		    (bit-string len (bs :: binary)))]))
 ]
 
 This single definition can now be used in any @racket[bit-string-case]
@@ -448,14 +458,23 @@ Formatting is likewise much simplified:
 
 @subsubsection{Supplying arguments to custom parsers and formatters}
 
-Custom parser/formatters must be macros or functions that accept one
-or more arguments. The first argument is a boolean flag, supplied as
+Custom parser/formatters must be macros that accept one or more
+arguments. The first argument is a boolean flag, supplied as
 @racket[#t] by @racket[bit-string-case] or as @racket[#f] by
 @racket[bit-string], indicating whether the custom extension is being
-used as a parser or a formatter, respectively. Subsequent arguments
-are supplied by the programmer at each use of the custom extension,
-and can be used to tweak the behaviour of the extension on a
-case-by-case basis.
+used as a parser or a formatter, respectively. Following the flag,
+
+@itemize[
+  @item{parsers (@racket[#t]) are given the remaining @racket[input]
+    to be parsed, a success continuation function @racket[ks] and a
+    failure continuation function @racket[kf], and}
+  @item{formatters (@racket[#f]) are given the @racket[value] to be
+    formatted.}
+]
+
+Subsequent arguments are supplied by the programmer at each use of the
+custom extension, and can be used to tweak the behaviour of the
+extension on a case-by-case basis.
 
 For example, let's suppose we didn't want to restrict ourselves to the
 single length byte of Pascal-style strings, but wanted instead a more
@@ -468,32 +487,28 @@ custom parser/formatter like the following:
 	       (syntax-rules ()
 
 		 (code:comment "Consume entirety of input, decode as UTF-8")
-		 [(_ #t)
-		  (lambda (input ks kf)
-		    (ks (bytes->string/utf-8 (bit-string->bytes input)) (bytes)))]
+		 [(_ #t input ks kf)
+		  (ks (bytes->string/utf-8 (bit-string->bytes input)) (bytes))]
 
 		 (code:comment "Consume a prefix of the input, decode as UTF-8")
-		 [(_ #t length-in-bytes)
-		  (lambda (input ks kf)
-		    (bit-string-case input
-		      ([ (body :: binary bytes length-in-bytes)
-			 (rest :: binary) ]
-		       (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
-		      (else
-		       (kf))))]
+		 [(_ #t input ks kf length-in-bytes)
+		  (bit-string-case input
+		    ([ (body :: binary bytes length-in-bytes)
+		       (rest :: binary) ]
+		     (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
+		    (else
+		     (kf)))]
 
 		 (code:comment "Encode the entire string without length prefix")
-		 [(_ #f)
-		  (lambda (str)
-		    (string->bytes/utf-8 str))]
+		 [(_ #f str)
+		  (string->bytes/utf-8 str)]
 
 		 (code:comment "Encode the entire string with a length prefix")
-		 [(_ #f (length-format-options ...))
-		  (lambda (str)
-		    (let* ((bs (string->bytes/utf-8 str))
-			   (len (bytes-length bs)))
-		      (bit-string (len :: length-format-options ...)
-				  (bs :: binary))))]))
+		 [(_ #f str (length-format-options ...))
+		  (let* ((bs (string->bytes/utf-8 str))
+			 (len (bytes-length bs)))
+		    (bit-string (len :: length-format-options ...)
+				(bs :: binary)))]))
 ]
 
 @margin-note{A more general @racket[utf-8] would be able to specify a
@@ -531,73 +546,49 @@ utilities such as variable-length integer codecs, generic zlib-based
 compressing codecs, generic encrypting codecs, generic transcoders and
 so on.
 
-@subsubsection{Using functions instead of macros}
-
-As we've seen above, using macros to define custom extensions is often
-convenient. The system does not require the use of macros, however: a
-function will do just as well, so long as it honours the boolean flag
-provided by @racket[bit-string-case] and @racket[bit-string].
-
-Applications of an extension function or macro are rewritten by
+Applications of a custom extension macro are rewritten by
 @racket[bit-string-case] from @racket[(extension arg ...)] to
-@racket[(extension #t arg ...)], and by @racket[bit-string] to
-@racket[(extension #f arg ...)].
+@racket[(extension #t input ks kf arg ...)], and by
+@racket[bit-string] to @racket[(extension #f value arg ...)].
 
 @subsubsection{The detailed anatomy of a custom extension}
 
 A custom extension should accept
 
 @itemize[
-  @item{the boolean flag indicating whether it is being used as a parser or a formatter, and}
+  @item{the boolean flag indicating whether it is being used as a parser or a formatter,}
+  @item{additional arguments, depending on whether it is being used as a parser or a formatter, and}
   @item{any other arguments supplied at the time of use.}
 ]
 
-It can use both the flag and its other arguments to decide exactly
-which parser or formatter to return.
-
-When called in "parser" mode (with @racket[#t] as its first argument),
-it should return a function which expects to be called with an input
-bit-string, a "success continuation" and a "failure continuation". The
-function should analyse the input bit-string as it sees fit. If it
-decides it has successfully matched a prefix of the input, it should
-call its success continuation with two arguments: the value extracted
-from the input prefix, and the remaining unconsumed input (as a
-bit-string). If, on the other hand, it decides it cannot match a
-prefix of the input, it should call its failure continuation with no
-arguments.
+When used in "parser" mode (with @racket[#t] as its first argument),
+expects a piece of syntax denoting an input bit-string, a "success
+continuation" and a "failure continuation" as its second through
+fourth arguments. The result of expansion should analyse the input
+bit-string as it sees fit. If it decides it has successfully matched a
+prefix of the input, it should call the success continuation with two
+arguments: the value extracted from the input prefix, and the
+remaining unconsumed input (as a bit-string). If, on the other hand,
+it decides it cannot match a prefix of the input, it should call the
+failure continuation with no arguments.
 
 When called in "formatter" mode (with @racket[#f] as its first
-argument), it should return a function which expects to be called with
-a single argument: the value to be formatted. The function should
-return the encoded form of its argument, as a bit-string.
+argument), it should expect a piece of syntax denoting the value to be
+formatted as its second argument. The result of expansion should be an
+expression resulting in the encoded form of this value, as a
+bit-string.
 
 The general form, then, of custom extensions, is:
 
 @racketblock[
-	     (define my-custom-extension
-	       (lambda (is-parsing . other-args)
-		 (if is-parsing
-		     (lambda (input success-k failure-k)
-		       (if (analyze input)
-			   (success-k result-of-analysis remainder-of-input)
-			   (failure-k)))
-		     (lambda (value)
-		       (format-value-as-bit-string value)))))
-]
-
-Or as a macro:
-
-@racketblock[
 	     (define-syntax my-custom-extension
 	       (syntax-rules ()
-		 [(_ #t other-arg ...)
-		  (lambda (input success-k failure-k)
-		    (if (analyze input)
-			(success-k result-of-analysis remainder-of-input)
-			(failure-k)))]
-		 [(_ #f other-arg ...)
-		  (lambda (value)
-		    (format-value-as-bit-string value))]))
+		 [(_ #t input success-k failure-k other-arg ...)
+		  (if (analyze input)
+		      (success-k result-of-analysis remainder-of-input)
+		      (failure-k))]
+		 [(_ #f value other-arg ...)
+		  (format-value-as-bit-string value)]))
 ]
 
 @subsection{Bit string utilities}

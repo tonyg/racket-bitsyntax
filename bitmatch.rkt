@@ -145,16 +145,17 @@
 	 (fthunk)))
     ((_ value tval fthunk (( action (parser arg ...) dontcare1 dontcare2 dontcare3 )
 			   remaining-clauses ...))
-     ((parser #t arg ...)
-      value
-      (lambda (result remaining-input)
-	;; TODO: support separation of transformation
-	;; from parsing so expensive transforms can
-	;; all be done together at the end.
-	(bit-string-perform-action action result fthunk
-				   (bit-string-case-arm remaining-input tval fthunk
-							(remaining-clauses ...))))
-      fthunk))
+     (parser #t
+	     value
+	     (lambda (result remaining-input)
+	       ;; TODO: support separation of transformation
+	       ;; from parsing so expensive transforms can
+	       ;; all be done together at the end.
+	       (bit-string-perform-action action result fthunk
+					  (bit-string-case-arm remaining-input tval fthunk
+							       (remaining-clauses ...))))
+	     fthunk
+	     arg ...))
     ((_ value tval fthunk (( action binary dontcare1 dontcare2 default ) ))
      (bit-string-perform-action action value fthunk tval))
     ((_ value tval fthunk (( action integer dontcare1 dontcare2 default )

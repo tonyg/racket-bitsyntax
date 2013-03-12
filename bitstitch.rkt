@@ -31,7 +31,8 @@
 (define-syntax parse-spec
   (syntax-rules (::)
     ((_ (expr :: (parser-fn-or-macro arg ...)))
-     ((parser-fn-or-macro #f arg ...) expr))
+     (let ((temp expr))
+       (parser-fn-or-macro #f temp arg ...)))
     ((_ (expr :: option ...))
      (parse-options (option ...) expr))
     ((_ expr)
