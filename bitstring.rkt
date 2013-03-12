@@ -67,6 +67,7 @@
 	 bit-string->bytes/align
 	 bit-string->signed-integer
 	 bit-string->unsigned-integer
+	 bit-string->byte
 	 bit-string->integer
 	 integer->bit-string)
 
@@ -551,6 +552,20 @@
 	       (#{acc : Nonnegative-Integer} 0 (bitwise-ior (arithmetic-shift acc 8)
 							    (bytes-ref bs i))))
 	      ((< i 0) acc))))))
+
+(: bit-string->byte : BitString -> Byte)
+;; Converts an eight-bit-wide bit string into a byte.
+(define (bit-string->byte x)
+  (when (not (= (bit-string-length x) 8))
+    (error 'bit-string->byte "Expects a bit string of length 8 bits: ~v" x))
+  (bytes-ref (bit-string->bytes x) 0))
+
+(check-equal? (bit-string->byte (bytes 1)) 1)
+(check-equal? (bit-string->byte (bytes #xff)) #xff)
+(check-equal? (bit-string->byte (bit-slice (bytes 255 240 0) 6 14)) 252)
+
+(check-exn #rx"Expects a bit string of length 8 bits"
+	   (lambda () (bit-string->byte (bit-slice (bytes 255 240 0) 6 16))))
 
 (: bit-string->integer : BitString Boolean Boolean -> Integer)
 ;; Generic version of the above.

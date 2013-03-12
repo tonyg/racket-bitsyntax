@@ -202,6 +202,9 @@
      (floating-point-bytes->real (bit-string->bytes bin)
 				 (bit-string-case-endianness endianness)
 				 0 8))
+    ((_ bin integer unsigned endianness 8)
+     ;; The width is already correct from the action of bit-string-split-at-or-false.
+     (bit-string->byte bin))
     ((_ bin integer unsigned endianness width-in-bits)
      ;; The width is already correct from the action of bit-string-split-at-or-false.
      (bit-string->unsigned-integer bin (bit-string-case-endianness endianness)))

@@ -702,14 +702,17 @@ or little-endian byte-ordering convention (per @racket[big-endian?]),
 and either unsigned or two's-complement signed arithmetic (per
 @racket[signed?]) to produce the result.}
 
+@defproc[(bit-string->byte [x bit-string?]) byte?]
 @defproc[(bit-string->signed-integer [x bit-string?]
 				     [big-endian? boolean?]) exact-integer?]
-
 @defproc[(bit-string->unsigned-integer [x bit-string?]
 				       [big-endian? boolean?]) exact-nonnegative-integer?]{
 
 Specialized versions of @racket[bit-string->integer], giving better
-type information for use with Typed Racket.}
+type information for use with Typed Racket.
+
+The function @racket[bit-string->byte] will raise an exception if
+given a bit string of any length other than exactly eight bits.}
 
 @defproc[(integer->bit-string [n integer?]
 			      [width integer?]
