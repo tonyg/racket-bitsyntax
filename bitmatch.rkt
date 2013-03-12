@@ -190,7 +190,7 @@
      tval)))
 
 (define-syntax bit-string-case-extract-value
-  (syntax-rules (binary integer float)
+  (syntax-rules (binary integer float signed unsigned)
     ((_ bin binary dontcare1 dontcare2 width-in-bits)
      ;; The width is already correct from the action of bit-string-split-at-or-false.
      bin)
@@ -202,11 +202,12 @@
      (floating-point-bytes->real (bit-string->bytes bin)
 				 (bit-string-case-endianness endianness)
 				 0 8))
+    ((_ bin integer unsigned endianness width-in-bits)
+     ;; The width is already correct from the action of bit-string-split-at-or-false.
+     (bit-string->unsigned-integer bin (bit-string-case-endianness endianness)))
     ((_ bin integer signedness endianness width-in-bits)
      ;; The width is already correct from the action of bit-string-split-at-or-false.
-     (bit-string->integer bin
-			  (bit-string-case-endianness endianness)
-			  (bit-string-case-signedness signedness)))))
+     (bit-string->signed-integer bin (bit-string-case-endianness endianness)))))
 
 (define-syntax bit-string-case-endianness
   (syntax-rules (little-endian big-endian native-endian)
@@ -216,10 +217,3 @@
      #t)
     ((_ native-endian)
      (system-big-endian?))))
-
-(define-syntax bit-string-case-signedness
-  (syntax-rules (signed unsigned)
-    ((_ unsigned)
-     #f)
-    ((_ signed)
-     #t)))
