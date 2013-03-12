@@ -681,9 +681,9 @@ bit-slices flattened away. The result will either be a @racket[bytes?]
 of the correct length, or a @racket[bit-slice] referring to a section
 of a byte vector of length @racket[(bit-string-byte-count x)].}
 
-@defproc[(copy-bits! [target bit-string?]
+@defproc[(copy-bits! [target bytes?]
 		     [target-offset integer?]
-		     [source bit-string?]
+		     [source bytes?]
 		     [source-offset integer?]
 		     [count integer?]) void?]{
 
@@ -695,12 +695,21 @@ source)].}
 
 @defproc[(bit-string->integer [x bit-string?]
 			      [big-endian? boolean?]
-			      [signed? boolean?]) integer?]{
+			      [signed? boolean?]) exact-integer?]{
 
 Interprets the bits in @racket[x] as an integer, using either a big-
 or little-endian byte-ordering convention (per @racket[big-endian?]),
 and either unsigned or two's-complement signed arithmetic (per
 @racket[signed?]) to produce the result.}
+
+@defproc[(bit-string->signed-integer [x bit-string?]
+				     [big-endian? boolean?]) exact-integer?]
+
+@defproc[(bit-string->unsigned-integer [x bit-string?]
+				       [big-endian? boolean?]) exact-nonnegative-integer?]{
+
+Specialized versions of @racket[bit-string->integer], giving better
+type information for use with Typed Racket.}
 
 @defproc[(integer->bit-string [n integer?]
 			      [width integer?]

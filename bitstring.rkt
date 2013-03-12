@@ -65,6 +65,8 @@
 	 bit-string-pack
 	 bit-string->bytes
 	 bit-string->bytes/align
+	 bit-string->signed-integer
+	 bit-string->unsigned-integer
 	 bit-string->integer
 	 integer->bit-string)
 
@@ -520,31 +522,42 @@
 (check-equal? (bit-string->bytes/align (bit-slice (bytes 255 240 0) 6 16) #t)
 	      (bytes 3 240))
 
-(: bit-string->integer : BitString Boolean Boolean -> Integer)
+(: bit-string->signed-integer : BitString Boolean -> Integer)
 ;; Extract an arbitrary-width two's-complement integer from a
 ;; bitstring. Big-endian byte ordering is used iff big-endian? is
-;; true. A signed interpretation is used iff signed? is true.
-(define (bit-string->integer x big-endian? signed?)
+;; true.
+(define (bit-string->signed-integer x big-endian?)
+  (let ((width (bit-string-length x))
+	(value (bit-string->unsigned-integer x big-endian?)))
+    (if (< value (arithmetic-shift 1 (sub1 width)))
+	value
+	(- value (arithmetic-shift 1 width)))))
+
+(: bit-string->unsigned-integer : BitString Boolean -> Nonnegative-Integer)
+;; Extract an arbitrary-width unsigned integer from a bitstring.
+;; Big-endian byte ordering is used iff big-endian? is true.
+(define (bit-string->unsigned-integer x big-endian?)
   (let ((width (bit-string-length x)))
-    (: fix-signed : Integer -> Integer)
-    (define (fix-signed value)
-      (cond
-       ((not signed?) value)
-       ((< value (arithmetic-shift 1 (sub1 width))) value)
-       (else (- value (arithmetic-shift 1 width)))))
     (if big-endian?
 	(let* ((bs (bit-string->bytes/align x #t))
 	       (count (bytes-length bs)))
 	  (do ((i 0 (+ i 1))
-	       (acc 0 (bitwise-ior (arithmetic-shift acc 8)
-				   (bytes-ref bs i))))
-	      ((= i count) (fix-signed acc))))
+	       (#{acc : Nonnegative-Integer} 0 (bitwise-ior (arithmetic-shift acc 8)
+							    (bytes-ref bs i))))
+	      ((= i count) acc)))
 	(let* ((bs (bit-string->bytes/align x #f))
 	       (count (bytes-length bs)))
 	  (do ((i (- count 1) (- i 1))
-	       (acc 0 (bitwise-ior (arithmetic-shift acc 8)
-				   (bytes-ref bs i))))
-	      ((< i 0) (fix-signed acc)))))))
+	       (#{acc : Nonnegative-Integer} 0 (bitwise-ior (arithmetic-shift acc 8)
+							    (bytes-ref bs i))))
+	      ((< i 0) acc))))))
+
+(: bit-string->integer : BitString Boolean Boolean -> Integer)
+;; Generic version of the above.
+(define (bit-string->integer x big-endian? signed?)
+  (if signed?
+      (bit-string->signed-integer x big-endian?)
+      (bit-string->unsigned-integer x big-endian?)))
 
 (check-equal? (bit-string->integer (bytes 1 2 3 4) #t #f) #x01020304)
 (check-equal? (bit-string->integer (bytes 129 2 3 4) #t #f) #x81020304)
