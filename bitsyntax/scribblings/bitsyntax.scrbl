@@ -104,6 +104,15 @@ has type @racket[BitString] if and only if it also results in
 
 @subsection{Pattern-matching bit strings}
 
+@;{
+;; TODO: anchor links to identifier "::" here, effectively aliasing it
+;; for documentation purposes to bit-string-case. There seems to be no
+;; way of doing this in Scribble at the moment. Digging into the
+;; implementation is terrifying. Instead of wasting more of my time
+;; trying to do this one simple thing, I'm going to leave it here.
+;; People will just have to live with the nagging warning from
+;; Scribble during execution of this file.
+;}
 @defform/subs[#:literals (when else
 			  = ::
 			  binary integer float
