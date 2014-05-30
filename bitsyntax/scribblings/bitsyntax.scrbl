@@ -1,18 +1,11 @@
 #lang scribble/manual
 
-@(require planet/scribble
-	  scribble/racket
+@(require scribble/racket
 	  (for-label racket
-		     (this-package-in main)))
+		     bitsyntax))
 
-@title{racket-bitsyntax}
+@title[#:version "4.0"]{bitsyntax}
 @author[(author+email "Tony Garnock-Jones" "tonygarnockjones@gmail.com")]
-
-@local-table-of-contents[]
-
-If you find that this library lacks some feature you need, or you have
-a suggestion for improving it, please don't hesitate to
-@link["mailto:tonygarnockjones@gmail.com"]{get in touch with me}!
 
 @section{Introduction}
 
@@ -48,6 +41,10 @@ The binary matching (@racket[bit-string-case]) and formatting
 parsers and formatters, giving lightweight syntactic support for
 domain-specific binary encodings of values.
 
+If you find that this library lacks some feature you need, or you have
+a suggestion for improving it, please don't hesitate to
+@link["mailto:tonygarnockjones@gmail.com"]{get in touch with me}!
+
 @section{Changes}
 
 Version 4.0 of this library changes the way custom parsers and
@@ -55,6 +52,10 @@ formatters work, requiring them to be macros, where in previous
 releases they could have been implemented as functions. Version 4.0 of
 the library also supports the use of @racket[bit-string-case] and
 @racket[bit-string] in Typed Racket code.
+
+Version 4.0 is also the final release made using the Planet package
+system. Current and future versions of this package will use the new
+Racket package system ("@tt{raco pkg}") instead.
 
 Version 3.2 of this library adds support for custom parsers and
 formatters.
@@ -93,7 +94,7 @@ whole bytes, use @racket[bit-string->bytes] or
 All the functionality below can be accessed with a single
 @racket[require]:
 
-@(defmodule/this-package main)
+@defmodule[bitsyntax]
 
 @subsection{Types}
 

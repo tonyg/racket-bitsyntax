@@ -8,4 +8,4 @@
 (define homepage "https://github.com/tonyg/racket-bitsyntax")
 (define primary-file "main.rkt")
 (define repositories '("4.x"))
-(define scribblings '(("manual.scrbl" ())))
+(define scribblings '(("scribblings/bitsyntax.scrbl" ())))
