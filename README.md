@@ -7,6 +7,15 @@ Erlang's binary pattern-matching:
  - <http://www.erlang.org/doc/reference_manual/expressions.html#id77409>
  - <http://www.erlang.org/doc/programming_examples/bit_syntax.html>
 
+## Documentation
+
+A rendered version of the documentation for this library is available
+via Github Pages:
+
+ - <http://tonyg.github.io/racket-bitsyntax/>
+
+## Example
+
 Here's a Racket equivalent of the example given in the Erlang documentation:
 
     (define IP-VERSION 4)
@@ -34,8 +43,3 @@ Here's a Racket equivalent of the example given in the Erlang documentation:
             'datagram-valid))))
       [else
        'datagram-not-valid])
-
-A rendered version of the documentation for this library is available
-on [PLaneT](http://planet.racket-lang.org/):
-
- - <http://planet.racket-lang.org/package-source/tonyg/bitsyntax.plt/3/2/planet-docs/manual/index.html>
