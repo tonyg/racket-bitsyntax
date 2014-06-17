@@ -4,7 +4,7 @@
 	  (for-label racket
 		     bitsyntax))
 
-@title[#:version "4.0"]{bitsyntax}
+@title[#:version "4.1"]{bitsyntax}
 @author[(author+email "Tony Garnock-Jones" "tonygarnockjones@gmail.com")]
 
 @section{Introduction}
@@ -46,6 +46,10 @@ a suggestion for improving it, please don't hesitate to
 @link["mailto:tonygarnockjones@gmail.com"]{get in touch with me}!
 
 @section{Changes}
+
+Version 4.1 of this library adds @racket[bit-string-take] and
+@racket[bit-string-drop], and causes the empty bit-string to be
+treated as an identity in @racket[bit-string-append].
 
 Version 4.0 of this library changes the way custom parsers and
 formatters work, requiring them to be macros, where in previous
@@ -639,6 +643,18 @@ Like @racket[(bit-string-split-at x offset)], but if @racket[offset]
 is out of range returns @racket[(values #f #f)] instead of signalling
 an error. This procedure is used in the implementation of
 @racket[bit-string-case].}
+
+@defproc[(bit-string-take [x bit-string?]
+			  [offset integer?]) bit-string?]{
+
+Retrieves the first @racket[offset] bits of @racket[x]. Raises an
+exception if @racket[offset] is out-of-bounds.}
+
+@defproc[(bit-string-drop [x bit-string?]
+			  [offset integer?]) bit-string?]{
+
+Discards the first @racket[offset] bits of @racket[x]. Raises an
+exception if @racket[offset] is out-of-bounds.}
 
 @defproc[(sub-bit-string [x bit-string?]
 			 [low-bit integer?]

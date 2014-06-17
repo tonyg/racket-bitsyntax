@@ -57,6 +57,8 @@
 	 bit-string-append
 	 bit-string-split-at-or-false
 	 bit-string-split-at
+	 bit-string-take
+	 bit-string-drop
 	 bit-string-ref
 	 sub-bit-string
 	 bit-string-byte-count
@@ -245,6 +247,18 @@
     (if (or (not lhs) (not rhs))
 	(error 'bit-string-split-at "Split point negative or beyond length of string: ~v" offset)
 	(values lhs rhs))))
+
+(: bit-string-take : BitString Natural -> BitString)
+;; Retrieves the first offset bits of x. Raises an exception if offset is out-of-bounds.
+(define (bit-string-take x offset)
+  (define-values (left right) (bit-string-split-at x offset))
+  left)
+
+(: bit-string-drop : BitString Natural -> BitString)
+;; Discards the first offset bits of x. Raises an exception if offset is out-of-bounds.
+(define (bit-string-drop x offset)
+  (define-values (left right) (bit-string-split-at x offset))
+  right)
 
 (: bit-string-ref : BitString Natural -> (U 0 1))
 ;; Retrieves a single bit at the given offset from the given bitstring.
