@@ -154,7 +154,12 @@
 	  (bit-slice (bit-slice-binary a)
 		     (bit-slice-low-bit a)
 		     (bit-slice-high-bit b)))
-      (splice (+ (bit-string-length a) (bit-string-length b)) a b)))
+      (let ((alen (bit-string-length a))
+	    (blen (bit-string-length b)))
+	(cond
+	 [(zero? alen) b]
+	 [(zero? blen) a]
+	 [else (splice (+ alen blen) a b)]))))
 
 (: bit-string-append : BitString * -> BitString)
 ;; Nary BitString append operator.
@@ -661,3 +666,6 @@
 						   (bit-slice (bytes 255) 1 6))
 				4 12))
 	      (bytes 31))
+(check-equal? (bit-string-append #"" #"") #"")
+(check-equal? (bit-string-append #"a" #"") #"a")
+(check-equal? (bit-string-append #"" #"a") #"a")
