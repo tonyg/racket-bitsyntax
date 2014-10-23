@@ -29,7 +29,7 @@ pattern-matching. The Erlang documentation provides a good
 introduction to these features:
 
 @itemize[
-  @item{@link["http://www.erlang.org/doc/reference_manual/expressions.html#id77409"]{Bit
+  @item{@link["http://www.erlang.org/doc/reference_manual/expressions.html#id80332"]{Bit
   syntax expressions} in the Erlang Reference Manual}
 
   @item{@link["http://www.erlang.org/doc/programming_examples/bit_syntax.html"]{Bit
