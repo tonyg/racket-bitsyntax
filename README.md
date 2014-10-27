@@ -4,7 +4,7 @@ Adds library support for slices and splices of byte-vectors to Racket,
 and adds syntax for pattern-matching such bit-strings, inspired by
 Erlang's binary pattern-matching:
 
- - <http://www.erlang.org/doc/reference_manual/expressions.html#id77409>
+ - <http://www.erlang.org/doc/reference_manual/expressions.html#id80332>
  - <http://www.erlang.org/doc/programming_examples/bit_syntax.html>
 
 ## Documentation
