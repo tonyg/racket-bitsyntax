@@ -41,9 +41,6 @@
 ;; the way network packets are written down and thought about, and is
 ;; compatible with Erlang to boot.
 
-(module+ test
-  (require typed/rackunit))
-
 (provide bit-slice?
 	 bit-slice-binary
 	 bit-slice-low-bit
@@ -72,7 +69,11 @@
 	 bit-string->unsigned-integer
 	 bit-string->byte
 	 bit-string->integer
-	 integer->bit-string)
+	 integer->bit-string
+         bit-string-equal?
+         bit-string-case-equal?)
+
+(module+ test (require typed/rackunit))
 
 ;; A section of a Bytes. Bits [low-bit,high-bit) from binary are
 ;; included in the slice.
@@ -215,40 +216,45 @@
 ;; out-of-range for x.
 (define (bit-string-split-at-or-false x offset)
   (let ((len (bit-string-length x)))
-    (if (or (negative? offset)
-	    (> offset len))
-	(values #f #f)
-	(let: split : (Values BitString BitString)
-	      ((x : BitString x)
-	       (offset : Natural offset))
-	  (cond
-	   ((bytes? x)
-	    (values (make-bit-slice x 0 offset)
-		    (make-bit-slice x offset (* 8 (bytes-length x)))))
-	   ((bit-slice? x)
-	    (let ((bin (bit-slice-binary x))
-		  (low (bit-slice-low-bit x))
-		  (high (bit-slice-high-bit x)))
-	      (let ((mid (+ low offset)))
-		(values (make-bit-slice bin low mid)
-			(make-bit-slice bin mid high)))))
-	   ((splice? x)
-	    (let* ((original-left (splice-left x))
-		   (splice-midpoint (bit-string-length original-left)))
-	      (cond
-	       ((< offset splice-midpoint)
-		(let-values (((left mid) (split original-left offset)))
-		  (values left
-			  (splice (cast (- (splice-length x) offset) Natural)
-				  mid
-				  (splice-right x)))))
-	       ((= offset splice-midpoint)
-		(values original-left (splice-right x)))
-	       (else
-		(let-values (((mid right) (split (splice-right x)
-						 (cast (- offset splice-midpoint) Natural))))
-		  (values (splice offset original-left mid)
-			  right)))))))))))
+    (cond
+      [(or (negative? offset) (> offset len))
+       (values #f #f)]
+      [(zero? offset)
+       (values #"" x)]
+      [(= offset len)
+       (values x #"")]
+      [else
+       (let: split : (Values BitString BitString)
+           ((x : BitString x)
+            (offset : Natural offset))
+         (cond
+           ((bytes? x)
+            (values (make-bit-slice x 0 offset)
+                    (make-bit-slice x offset (* 8 (bytes-length x)))))
+           ((bit-slice? x)
+            (let ((bin (bit-slice-binary x))
+                  (low (bit-slice-low-bit x))
+                  (high (bit-slice-high-bit x)))
+              (let ((mid (+ low offset)))
+                (values (make-bit-slice bin low mid)
+                        (make-bit-slice bin mid high)))))
+           ((splice? x)
+            (let* ((original-left (splice-left x))
+                   (splice-midpoint (bit-string-length original-left)))
+              (cond
+                ((< offset splice-midpoint)
+                 (let-values (((left mid) (split original-left offset)))
+                   (values left
+                           (splice (cast (- (splice-length x) offset) Natural)
+                                   mid
+                                   (splice-right x)))))
+                ((= offset splice-midpoint)
+                 (values original-left (splice-right x)))
+                (else
+                 (let-values (((mid right) (split (splice-right x)
+                                                  (cast (- offset splice-midpoint) Natural))))
+                   (values (splice offset original-left mid)
+                           right))))))))])))
 
 (: bit-string-split-at : BitString Natural -> (Values BitString BitString))
 ;; As bit-string-split-at-or-false, but raises an exception if offset
@@ -512,7 +518,9 @@
    ((bit-slice? x)
     (if (= (bytes-length (bit-slice-binary x))
 	   (bit-string-byte-count x))
-	x
+        (if (zero? (bit-slice-low-bit x))
+            (bit-slice-binary x)
+            x)
 	(flatten-to-bytes x #f)))
    ((splice? x)
     (flatten-to-bytes x #f))))
@@ -705,3 +713,36 @@
   (check-equal? (bit-string-append #"" #"") #"")
   (check-equal? (bit-string-append #"a" #"") #"a")
   (check-equal? (bit-string-append #"" #"a") #"a"))
+
+(: bit-string-equal? : BitString BitString -> Boolean)
+(define (bit-string-equal? a b)
+  (equal? (bit-string-pack a)
+          (bit-string-pack b)))
+
+(: bit-string-case-equal? : Any Any -> Boolean)
+(define (bit-string-case-equal? a b)
+  (if (and (bit-string? a) (bit-string? b))
+      (bit-string-equal? a b)
+      (equal? a b)))
+
+(module+ test
+  (check-true (bit-string-equal? #"a" #"a"))
+  (check-false (bit-string-equal? #"a" #"b"))
+  (check-true (bit-string-equal? #"bc" (sub-bit-string #"abc" 8 24)))
+  (check-false (bit-string-equal? #"bc" (sub-bit-string #"abc" 8 23)))
+  (check-false (bit-string-equal? #"ab" (sub-bit-string #"abc" 8 24)))
+  (check-true (bit-string-equal? #"ab" (sub-bit-string #"ab" 0 16)))
+  (check-true (bit-string-equal? (bit-string-append #"a" #"b") (sub-bit-string #"abc" 0 16)))
+  (check-false (bit-string-equal? (bit-string-append #"b" #"c") (sub-bit-string #"abc" 0 16)))
+  (check-true (bit-string-case-equal? 123 123))
+  (check-false (bit-string-case-equal? 123 124))
+  (check-true (bit-string-case-equal? "abc" "abc"))
+  (check-false (bit-string-case-equal? "abc" "abd"))
+  (check-true (bit-string-case-equal? #"a" #"a"))
+  (check-false (bit-string-case-equal? #"a" #"b"))
+  (check-true (bit-string-case-equal? #"bc" (sub-bit-string #"abc" 8 24)))
+  (check-false (bit-string-case-equal? #"bc" (sub-bit-string #"abc" 8 23)))
+  (check-false (bit-string-case-equal? #"ab" (sub-bit-string #"abc" 8 24)))
+  (check-true (bit-string-case-equal? #"ab" (sub-bit-string #"ab" 0 16)))
+  (check-true (bit-string-case-equal? (bit-string-append #"a" #"b") (sub-bit-string #"abc" 0 16)))
+  (check-false (bit-string-case-equal? (bit-string-append #"b" #"c") (sub-bit-string #"abc" 0 16))))

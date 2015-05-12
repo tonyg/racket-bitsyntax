@@ -616,8 +616,13 @@ otherwise.}
 Returns the length of its argument, in bits.}
 
 @defproc[(bit-string-empty? [x bit-string?]) boolean?]{
-Returns @racket[#t] if its argument's @racket[bit-string-length] is
+Returns @racket[#t] iff its argument's @racket[bit-string-length] is
 zero.}
+
+@defproc[(bit-string-equal? [x bit-string?] [y bit-string?]) boolean?]{
+Returns @racket[#t] iff the bit sequences described by @racket[x] and
+@racket[y] are identical.
+}
 
 @defproc[(bit-string-append [a bit-string?] ...) bit-string?]{
 Appends its arguments in order, producing a new bit string. Uses

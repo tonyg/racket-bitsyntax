@@ -188,7 +188,7 @@
      (let ((identifier this-value))
        tval))
     ((_ (check expr) this-value fthunk tval)
-     (if (equal? this-value expr)
+     (if (bit-string-case-equal? this-value expr)
 	 tval
 	 (fthunk)))
     ((_ discard this-value fthunk tval)

@@ -138,3 +138,11 @@
 	       (bit-string ((list->string (map integer->char (list 229 228 246)))
 			    :: (utf-8 (integer bytes 4)))))
 	      (bytes #x00 #x00 #x00 #x06 #xc3 #xa5 #xc3 #xa4 #xc3 #xb6))
+
+(let ((test #"\21\21\21\21\21\21"))
+  (check-true (bit-string-case test
+                ([(= test :: binary bytes 6)] #t)
+                (else #f)))
+  (check-true (bit-string-case test
+                ([(= test :: binary)] #t)
+                (else #f))))
