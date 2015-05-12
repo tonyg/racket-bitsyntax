@@ -138,44 +138,49 @@
 				 canonical-pattern))))))))
 
 (define-syntax bit-string-case-arm
-  (syntax-rules (binary integer float default)
-    ((_ value tval fthunk ())
-     (if (zero? (bit-string-length value))
-	 tval
-	 (fthunk)))
-    ((_ value tval fthunk (( action (parser arg ...) dontcare1 dontcare2 dontcare3 )
-			   remaining-clauses ...))
-     (parser #t
-	     value
-	     (lambda (result remaining-input)
-	       ;; TODO: support separation of transformation
-	       ;; from parsing so expensive transforms can
-	       ;; all be done together at the end.
-	       (bit-string-perform-action action result fthunk
-					  (bit-string-case-arm remaining-input tval fthunk
-							       (remaining-clauses ...))))
-	     fthunk
-	     arg ...))
-    ((_ value tval fthunk (( action binary dontcare1 dontcare2 default ) ))
-     (bit-string-perform-action action value fthunk tval))
-    ((_ value tval fthunk (( action integer dontcare1 dontcare2 default )
-			   remaining-clauses ...))
-     (bit-string-case-arm value tval fthunk (( action integer dontcare1 dontcare2 8 )
-					     remaining-clauses ...)))
-    ((_ value tval fthunk (( action float dontcare1 dontcare2 default )
-			   remaining-clauses ...))
-     (bit-string-case-arm value tval fthunk (( action float dontcare1 dontcare2 64 )
-					     remaining-clauses ...)))
-    ((_ value tval fthunk (( action type signedness endianness width )
-			   remaining-clauses ...))
-     (let-values (((lhs rhs) (bit-string-split-at-or-false value width)))
-       (if (or (not lhs) (not rhs))
-	   (fthunk)
-	   (let ((this-value (bit-string-case-extract-value
-			      lhs type signedness endianness width)))
-	     (bit-string-perform-action action this-value fthunk
-					(bit-string-case-arm rhs tval fthunk
-							     (remaining-clauses ...)))))))))
+  (lambda (stx)
+    (syntax-case stx (binary integer float default)
+      ((_ value tval fthunk ())
+       #'(if (zero? (bit-string-length value))
+             tval
+             (fthunk)))
+      ((_ value tval fthunk (( action (parser arg ...) dontcare1 dontcare2 dontcare3 )
+                             remaining-clauses ...))
+       #'(parser #t
+                 value
+                 (lambda (result remaining-input)
+                   ;; TODO: support separation of transformation
+                   ;; from parsing so expensive transforms can
+                   ;; all be done together at the end.
+                   (bit-string-perform-action action result fthunk
+                                              (bit-string-case-arm remaining-input tval fthunk
+                                                                   (remaining-clauses ...))))
+                 fthunk
+                 arg ...))
+      ((_ value tval fthunk (( action binary dontcare1 dontcare2 default ) ))
+       #'(bit-string-perform-action action value fthunk tval))
+      ((_ value tval fthunk (( action binary dontcare1 dontcare2 default )
+                             remaining-clause remaining-clauses ...))
+       (raise-syntax-error 'bit-string-case
+                           "Clauses supplied after variable-width binary clause"))
+      ((_ value tval fthunk (( action integer dontcare1 dontcare2 default )
+                             remaining-clauses ...))
+       #'(bit-string-case-arm value tval fthunk (( action integer dontcare1 dontcare2 8 )
+                                                 remaining-clauses ...)))
+      ((_ value tval fthunk (( action float dontcare1 dontcare2 default )
+                             remaining-clauses ...))
+       #'(bit-string-case-arm value tval fthunk (( action float dontcare1 dontcare2 64 )
+                                                 remaining-clauses ...)))
+      ((_ value tval fthunk (( action type signedness endianness width )
+                             remaining-clauses ...))
+       #'(let-values (((lhs rhs) (bit-string-split-at-or-false value width)))
+           (if (or (not lhs) (not rhs))
+               (fthunk)
+               (let ((this-value (bit-string-case-extract-value
+                                  lhs type signedness endianness width)))
+                 (bit-string-perform-action action this-value fthunk
+                                            (bit-string-case-arm rhs tval fthunk
+                                                                 (remaining-clauses ...))))))))))
 
 (define-syntax bit-string-perform-action
   (syntax-rules (check bind discard)
