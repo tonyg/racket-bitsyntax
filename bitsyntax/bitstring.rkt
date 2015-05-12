@@ -41,7 +41,8 @@
 ;; the way network packets are written down and thought about, and is
 ;; compatible with Erlang to boot.
 
-(require typed/rackunit)
+(module+ test
+  (require typed/rackunit))
 
 (provide bit-slice?
 	 bit-slice-binary
@@ -92,11 +93,12 @@
       #""
       (bit-slice binary low-bit high-bit)))
 
-(check-equal? (bit-string? "hello") #f)
-(check-equal? (bit-string? 123) #f)
-(check-equal? (bit-string? #"hello") #t)
-(check-equal? (bit-string? (make-bit-slice #"hello" 2 4)) #t)
-(check-equal? (bit-string? (splice 0 (bytes) (bytes))) #t)
+(module+ test
+  (check-equal? (bit-string? "hello") #f)
+  (check-equal? (bit-string? 123) #f)
+  (check-equal? (bit-string? #"hello") #t)
+  (check-equal? (bit-string? (make-bit-slice #"hello" 2 4)) #t)
+  (check-equal? (bit-string? (splice 0 (bytes) (bytes))) #t))
 
 (: bit-string-empty? : BitString -> Boolean)
 ;; True iff the given bitstring contains no bits.
@@ -111,15 +113,16 @@
    ((bit-slice? x) (cast (- (bit-slice-high-bit x) (bit-slice-low-bit x)) Natural))
    ((splice? x) (splice-length x))))
 
-(check-equal? (bit-string-empty? (bytes)) #t)
-(check-equal? (bit-string-empty? (bytes 1)) #f)
+(module+ test
+  (check-equal? (bit-string-empty? (bytes)) #t)
+  (check-equal? (bit-string-empty? (bytes 1)) #f)
 
-(check-equal? (bit-string-length (bytes)) 0)
-(check-equal? (bit-string-length (bytes 255)) 8)
-(check-equal? (bit-string-length (bytes 10)) 8)
-(check-equal? (bit-string-length (bit-slice (bytes) 0 0)) 0)
-(check-equal? (bit-string-length (make-bit-slice (bytes 255) 1 4)) 3)
-(check-equal? (bit-string-length (make-bit-slice (bytes 10) 1 4)) 3)
+  (check-equal? (bit-string-length (bytes)) 0)
+  (check-equal? (bit-string-length (bytes 255)) 8)
+  (check-equal? (bit-string-length (bytes 10)) 8)
+  (check-equal? (bit-string-length (bit-slice (bytes) 0 0)) 0)
+  (check-equal? (bit-string-length (make-bit-slice (bytes 255) 1 4)) 3)
+  (check-equal? (bit-string-length (make-bit-slice (bytes 10) 1 4)) 3))
 
 (: abutting? : BitString BitString -> Boolean)
 ;; True iff both arguments are slices of the same underlying Bytes,
@@ -134,18 +137,19 @@
 	  (bit-slice-low-bit b))))
 
 (define abutting-test-binary (bytes 255))
-(check-equal? (abutting? abutting-test-binary abutting-test-binary) #f)
-(check-equal? (abutting? (bytes 255) (bytes 255)) #f)
-(check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
-			 (make-bit-slice (bytes 255) 4 6)) #f)
-(check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
-			 (make-bit-slice abutting-test-binary 4 6)) #t)
-(check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
-			 (make-bit-slice abutting-test-binary 5 6)) #f)
-(check-equal? (abutting? (make-bit-slice abutting-test-binary 1 3)
-			 (make-bit-slice abutting-test-binary 4 6)) #f)
-(check-equal? (abutting? (make-bit-slice abutting-test-binary 4 6)
-			 (make-bit-slice abutting-test-binary 1 4)) #f)
+(module+ test
+  (check-equal? (abutting? abutting-test-binary abutting-test-binary) #f)
+  (check-equal? (abutting? (bytes 255) (bytes 255)) #f)
+  (check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
+                           (make-bit-slice (bytes 255) 4 6)) #f)
+  (check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
+                           (make-bit-slice abutting-test-binary 4 6)) #t)
+  (check-equal? (abutting? (make-bit-slice abutting-test-binary 1 4)
+                           (make-bit-slice abutting-test-binary 5 6)) #f)
+  (check-equal? (abutting? (make-bit-slice abutting-test-binary 1 3)
+                           (make-bit-slice abutting-test-binary 4 6)) #f)
+  (check-equal? (abutting? (make-bit-slice abutting-test-binary 4 6)
+                           (make-bit-slice abutting-test-binary 1 4)) #f))
 
 (: bit-string-append-2 : BitString BitString -> BitString)
 ;; 2ary BitString append operator.
@@ -180,27 +184,28 @@
 		(car bss)
 		(cdr bss))]))
 
-(check-equal? (bit-string-append)
-	      #"")
-(check-equal? (bit-string-append abutting-test-binary)
-	      abutting-test-binary)
-(check-equal? (bit-string-append (make-bit-slice abutting-test-binary 0 4)
-				 (make-bit-slice abutting-test-binary 4 8))
-	      abutting-test-binary)
-(check-equal? (bit-string-append (make-bit-slice abutting-test-binary 0 4)
-				 (make-bit-slice abutting-test-binary 4 6)
-				 (make-bit-slice abutting-test-binary 6 8))
-	      abutting-test-binary)
-(check-equal? (bit-string-append (make-bit-slice abutting-test-binary 1 4)
-				 (make-bit-slice abutting-test-binary 4 6))
-	      (make-bit-slice abutting-test-binary 1 6))
-(check-equal? (bit-string-append (make-bit-slice (bytes 255) 1 4)
-				 (make-bit-slice (bytes 255) 4 6))
-	      (splice 5
-		      (make-bit-slice (bytes 255) 1 4)
-		      (make-bit-slice (bytes 255) 4 6)))
+(module+ test
+  (check-equal? (bit-string-append)
+                #"")
+  (check-equal? (bit-string-append abutting-test-binary)
+                abutting-test-binary)
+  (check-equal? (bit-string-append (make-bit-slice abutting-test-binary 0 4)
+                                   (make-bit-slice abutting-test-binary 4 8))
+                abutting-test-binary)
+  (check-equal? (bit-string-append (make-bit-slice abutting-test-binary 0 4)
+                                   (make-bit-slice abutting-test-binary 4 6)
+                                   (make-bit-slice abutting-test-binary 6 8))
+                abutting-test-binary)
+  (check-equal? (bit-string-append (make-bit-slice abutting-test-binary 1 4)
+                                   (make-bit-slice abutting-test-binary 4 6))
+                (make-bit-slice abutting-test-binary 1 6))
+  (check-equal? (bit-string-append (make-bit-slice (bytes 255) 1 4)
+                                   (make-bit-slice (bytes 255) 4 6))
+                (splice 5
+                        (make-bit-slice (bytes 255) 1 4)
+                        (make-bit-slice (bytes 255) 4 6)))
 
-(check-equal? (bit-string-length (bit-string-append (bytes 1) (bytes 2))) 16)
+  (check-equal? (bit-string-length (bit-string-append (bytes 1) (bytes 2))) 16))
 
 (: bit-string-split-at-or-false :
    BitString Integer -> (Values (Option BitString) (Option BitString)))
@@ -292,21 +297,23 @@
 	    (search left offset)
 	    (search (splice-right x) (cast (- offset midpoint) Natural))))))))
 
-(check-equal? (bit-string-ref (bytes #x80) 0) 1)
-(check-equal? (bit-string-ref (bytes #x80) 7) 0)
-(check-equal? (bit-string-ref (bytes #x20) 2) 1)
-(check-equal? (bit-string-ref (bytes #x01) 0) 0)
-(check-equal? (bit-string-ref (bytes #x01) 7) 1)
-(check-equal? (bit-string-ref (bytes #x00 #x80) 8) 1)
-(check-equal? (bit-string-ref (bytes #x00 #x01) 15) 1)
-(check-equal? (bit-string-ref (make-bit-slice (bytes #x20) 2 3) 0) 1)
-(check-equal? (bit-string-ref (make-bit-slice (bytes #x40) 2 3) 0) 0)
+(module+ test
+  (check-equal? (bit-string-ref (bytes #x80) 0) 1)
+  (check-equal? (bit-string-ref (bytes #x80) 7) 0)
+  (check-equal? (bit-string-ref (bytes #x20) 2) 1)
+  (check-equal? (bit-string-ref (bytes #x01) 0) 0)
+  (check-equal? (bit-string-ref (bytes #x01) 7) 1)
+  (check-equal? (bit-string-ref (bytes #x00 #x80) 8) 1)
+  (check-equal? (bit-string-ref (bytes #x00 #x01) 15) 1)
+  (check-equal? (bit-string-ref (make-bit-slice (bytes #x20) 2 3) 0) 1)
+  (check-equal? (bit-string-ref (make-bit-slice (bytes #x40) 2 3) 0) 0)
 
-;; Caught by type (and contract):
-;; (check-exn #rx"Offset must be non-negative"
-;; 	   (lambda () (bit-string-ref (bytes #xff) -1)))
-(check-exn #rx"Offset must be less than or equal to bit string length"
-	   (lambda () (bit-string-ref (bytes #xff) 100)))
+  ;; Caught by type (and contract):
+  ;; (check-exn #rx"Offset must be non-negative"
+  ;; 	   (lambda () (bit-string-ref (bytes #xff) -1)))
+  (check-exn #rx"Offset must be less than or equal to bit string length"
+             (lambda () (bit-string-ref (bytes #xff) 100))))
+
 
 (: sub-bit-string : BitString Natural Natural -> BitString)
 ;; Retrieves a section of the given bitstring, starting and ending at
@@ -350,10 +357,11 @@
 (define (bit-string-byte-count x)
   (bits->bytes (bit-string-length x)))
 
-(check-equal? (bit-string-byte-count (bytes #xff)) 1)
-(check-equal? (bit-string-byte-count (bytes #xff #x00)) 2)
-(check-equal? (bit-string-byte-count (make-bit-slice (bytes #xff #x00) 6 16)) 2)
-(check-equal? (bit-string-byte-count (make-bit-slice (bytes #xff #x00) 6 14)) 1)
+(module+ test
+  (check-equal? (bit-string-byte-count (bytes #xff)) 1)
+  (check-equal? (bit-string-byte-count (bytes #xff #x00)) 2)
+  (check-equal? (bit-string-byte-count (make-bit-slice (bytes #xff #x00) 6 16)) 2)
+  (check-equal? (bit-string-byte-count (make-bit-slice (bytes #xff #x00) 6 14)) 1))
 
 (: bits->bytes+slop : Natural -> (Values Natural Natural))
 ;; As for bits->bytes, but also returns, as the second value, the
@@ -368,10 +376,11 @@
 (define (bit-string-byte-count+slop x)
   (bits->bytes+slop (bit-string-length x)))
 
-(check-equal? (let-values (((b s) (bit-string-byte-count+slop
-				   (make-bit-slice (bytes #xff #x00) 6 16))))
-		(list b s))
-	      (list 2 6))
+(module+ test
+  (check-equal? (let-values (((b s) (bit-string-byte-count+slop
+                                     (make-bit-slice (bytes #xff #x00) 6 16))))
+                  (list b s))
+                (list 2 6)))
 
 (: bit-mask : Natural -> Natural)
 ;; Returns the sum of 2^0 ... 2^(width-1).
@@ -444,12 +453,13 @@
     ;; We're finally done.
     ))
 
-(check-equal? (let ((buf (bytes 0))) (copy-bits! buf 4 (bytes 255 255 255) 17 4) buf)
-	      (bytes 15))
-(check-equal? (let ((buf (bytes 0 0 0 0)))
-		(copy-bits! buf 6 (bytes 255 255 255 255) 2 12)
-		buf)
-	      (bytes #b00000011 #b11111111 #b11000000 #b00000000))
+(module+ test
+  (check-equal? (let ((buf (bytes 0))) (copy-bits! buf 4 (bytes 255 255 255) 17 4) buf)
+                (bytes 15))
+  (check-equal? (let ((buf (bytes 0 0 0 0)))
+                  (copy-bits! buf 6 (bytes 255 255 255 255) 2 12)
+                  buf)
+                (bytes #b00000011 #b11111111 #b11000000 #b00000000)))
 
 (: bit-string-pack! : BitString Bytes Natural -> Void)
 ;; Copies the whole of x into buf, so that when it returns,
@@ -469,10 +479,11 @@
       (bit-string-pack! left buf offset)
       (bit-string-pack! (splice-right x) buf (+ offset left-length))))))
 
-(check-equal? (let ((buf (bytes 0 0 0 0)))
-		(bit-string-pack! (bytes 255) buf 4)
-		buf)
-	      (bytes 15 240 0 0))
+(module+ test
+  (check-equal? (let ((buf (bytes 0 0 0 0)))
+                  (bit-string-pack! (bytes 255) buf 4)
+                  buf)
+                (bytes 15 240 0 0)))
 
 (: flatten-to-bytes : BitString Boolean -> (U Bytes bit-slice))
 ;; Returns a BitString logically identical to its argument, but
@@ -506,11 +517,12 @@
    ((splice? x)
     (flatten-to-bytes x #f))))
 
-(check-equal? (bit-string-pack (bytes 1)) (bytes 1))
-(check-equal? (bit-string-pack (make-bit-slice (bytes 255 255) 2 14))
-	      (make-bit-slice (bytes 255 255) 2 14))
-(check-equal? (bit-string-pack (make-bit-slice (bytes 255 255) 2 4))
-	      (make-bit-slice (bytes 192) 0 2))
+(module+ test
+  (check-equal? (bit-string-pack (bytes 1)) (bytes 1))
+  (check-equal? (bit-string-pack (make-bit-slice (bytes 255 255) 2 14))
+                (make-bit-slice (bytes 255 255) 2 14))
+  (check-equal? (bit-string-pack (make-bit-slice (bytes 255 255) 2 4))
+                (make-bit-slice (bytes 192) 0 2)))
 
 (: bit-string->bytes : BitString -> Bytes)
 ;; Equivalent to (bit-string->bytes/align x #f). (See below.)
@@ -529,24 +541,25 @@
 	    (bit-slice-binary v)
 	    v))))
 
-;; 1111 1111 1111 0000 0000 0000
-;;        -- ---- ----
-;;
-;; packed into bytes, yielding two bytes worth, and per the rules
-;; described above, the bits are copied left to right, so
-;;
-;; 1111 1100 0000 0000
-;; ---- ---- --
-(check-equal? (bit-string-pack (make-bit-slice (bytes 255 240 0) 6 16))
-	      (make-bit-slice (bytes 252 0) 0 10))
-(check-equal? (bit-string->bytes (make-bit-slice (bytes 255 240 0) 6 16))
-	      (bytes 252 0))
+(module+ test
+  ;; 1111 1111 1111 0000 0000 0000
+  ;;        -- ---- ----
+  ;;
+  ;; packed into bytes, yielding two bytes worth, and per the rules
+  ;; described above, the bits are copied left to right, so
+  ;;
+  ;; 1111 1100 0000 0000
+  ;; ---- ---- --
+  (check-equal? (bit-string-pack (make-bit-slice (bytes 255 240 0) 6 16))
+                (make-bit-slice (bytes 252 0) 0 10))
+  (check-equal? (bit-string->bytes (make-bit-slice (bytes 255 240 0) 6 16))
+                (bytes 252 0))
 
-;; Aligned right, that'll be
-;; 0000 0011 1111 0000
-;;        -- ---- ----
-(check-equal? (bit-string->bytes/align (make-bit-slice (bytes 255 240 0) 6 16) #t)
-	      (bytes 3 240))
+  ;; Aligned right, that'll be
+  ;; 0000 0011 1111 0000
+  ;;        -- ---- ----
+  (check-equal? (bit-string->bytes/align (make-bit-slice (bytes 255 240 0) 6 16) #t)
+                (bytes 3 240)))
 
 (: bit-string->signed-integer : BitString Boolean -> Integer)
 ;; Extract an arbitrary-width two's-complement integer from a
@@ -585,12 +598,13 @@
     (error 'bit-string->byte "Expects a bit string of length 8 bits: ~v" x))
   (bytes-ref (bit-string->bytes x) 0))
 
-(check-equal? (bit-string->byte (bytes 1)) 1)
-(check-equal? (bit-string->byte (bytes #xff)) #xff)
-(check-equal? (bit-string->byte (make-bit-slice (bytes 255 240 0) 6 14)) 252)
+(module+ test
+  (check-equal? (bit-string->byte (bytes 1)) 1)
+  (check-equal? (bit-string->byte (bytes #xff)) #xff)
+  (check-equal? (bit-string->byte (make-bit-slice (bytes 255 240 0) 6 14)) 252)
 
-(check-exn #rx"Expects a bit string of length 8 bits"
-	   (lambda () (bit-string->byte (make-bit-slice (bytes 255 240 0) 6 16))))
+  (check-exn #rx"Expects a bit string of length 8 bits"
+             (lambda () (bit-string->byte (make-bit-slice (bytes 255 240 0) 6 16)))))
 
 (: bit-string->integer : BitString Boolean Boolean -> Integer)
 ;; Generic version of the above.
@@ -599,17 +613,18 @@
       (bit-string->signed-integer x big-endian?)
       (bit-string->unsigned-integer x big-endian?)))
 
-(check-equal? (bit-string->integer (bytes 1 2 3 4) #t #f) #x01020304)
-(check-equal? (bit-string->integer (bytes 129 2 3 4) #t #f) #x81020304)
-(check-equal? (bit-string->integer (bytes 129 2 3 4) #t #t) (- #x81020304 #x100000000))
-(check-equal? (bit-string->integer (bytes 1 2 3 4) #f #f) #x04030201)
-(check-equal? (bit-string->integer (bytes 1 2 3 132) #f #f) #x84030201)
-(check-equal? (bit-string->integer (bytes 1 2 3 132) #f #t) (- #x84030201 #x100000000))
+(module+ test
+  (check-equal? (bit-string->integer (bytes 1 2 3 4) #t #f) #x01020304)
+  (check-equal? (bit-string->integer (bytes 129 2 3 4) #t #f) #x81020304)
+  (check-equal? (bit-string->integer (bytes 129 2 3 4) #t #t) (- #x81020304 #x100000000))
+  (check-equal? (bit-string->integer (bytes 1 2 3 4) #f #f) #x04030201)
+  (check-equal? (bit-string->integer (bytes 1 2 3 132) #f #f) #x84030201)
+  (check-equal? (bit-string->integer (bytes 1 2 3 132) #f #t) (- #x84030201 #x100000000))
 
-(check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #f) 252)
-(check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #t) 252)
-(check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #f) 1008)
-(check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #t) -16)
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #f) 252)
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #t) 252)
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #f) 1008)
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #t) -16))
 
 (: integer->bit-string : Integer Natural Boolean -> BitString)
 ;; Encodes an integer as a BitString of a given width using the given
@@ -630,62 +645,63 @@
 	    (let ((low-bit (* i 8)))
 	      (bytes-set! bin i (bitwise-bit-field n low-bit (+ low-bit 8)))))))))
 
-(check-equal? (integer->bit-string #x01020304 32 #t) (bytes 1 2 3 4))
-(check-equal? (integer->bit-string #x81020304 32 #t) (bytes 129 2 3 4))
-(check-equal? (integer->bit-string (- #x81020304 #x100000000) 32 #t) (bytes 129 2 3 4))
-(check-equal? (integer->bit-string #x04030201 32 #f) (bytes 1 2 3 4))
-(check-equal? (integer->bit-string #x84030201 32 #f) (bytes 1 2 3 132))
-(check-equal? (integer->bit-string (- #x84030201 #x100000000) 32 #f) (bytes 1 2 3 132))
+(module+ test
+  (check-equal? (integer->bit-string #x01020304 32 #t) (bytes 1 2 3 4))
+  (check-equal? (integer->bit-string #x81020304 32 #t) (bytes 129 2 3 4))
+  (check-equal? (integer->bit-string (- #x81020304 #x100000000) 32 #t) (bytes 129 2 3 4))
+  (check-equal? (integer->bit-string #x04030201 32 #f) (bytes 1 2 3 4))
+  (check-equal? (integer->bit-string #x84030201 32 #f) (bytes 1 2 3 132))
+  (check-equal? (integer->bit-string (- #x84030201 #x100000000) 32 #f) (bytes 1 2 3 132))
 
-(check-equal? (integer->bit-string 252 10 #f)  (make-bit-slice (bytes 252 0) 0 10))
-(check-equal? (integer->bit-string 1008 10 #t) (make-bit-slice (bytes 3 240) 6 16))
-(check-equal? (integer->bit-string -16 10 #t)  (make-bit-slice (bytes 255 240) 6 16))
-;;                                                                    ^^^
-;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are
-;; not part of the answer.
+  (check-equal? (integer->bit-string 252 10 #f)  (make-bit-slice (bytes 252 0) 0 10))
+  (check-equal? (integer->bit-string 1008 10 #t) (make-bit-slice (bytes 3 240) 6 16))
+  (check-equal? (integer->bit-string -16 10 #t)  (make-bit-slice (bytes 255 240) 6 16))
+  ;;                                                                    ^^^
+  ;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are
+  ;; not part of the answer.
 
-(check-exn #rx"Split point negative or beyond length of string"
-	   (lambda ()
-	     (bit-string-split-at (bytes #xff) 100)
-	     (void)))
+  (check-exn #rx"Split point negative or beyond length of string"
+             (lambda ()
+               (bit-string-split-at (bytes #xff) 100)
+               (void)))
 
-(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) -2)))
-		(or a b))
-	      #f)
-(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 2)))
-		(and a b
-		     (equal? (bit-string->bytes/align a #t) (bytes 0))
-		     (equal? (bit-string->bytes/align b #t) (bytes 1))))
-	      #t)
-(check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 20)))
-		(or a b))
-	      #f)
+  (check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) -2)))
+                  (or a b))
+                #f)
+  (check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 2)))
+                  (and a b
+                       (equal? (bit-string->bytes/align a #t) (bytes 0))
+                       (equal? (bit-string->bytes/align b #t) (bytes 1))))
+                #t)
+  (check-equal? (let-values (((a b) (bit-string-split-at-or-false (bytes 1) 20)))
+                  (or a b))
+                #f)
 
-(check-equal? (bit-string-ref (bit-string-append (bytes 4) (bytes 0)) 5) 1)
-(check-equal? (bit-string-ref (bit-string-append (bytes 0) (bytes 4)) 13) 1)
+  (check-equal? (bit-string-ref (bit-string-append (bytes 4) (bytes 0)) 5) 1)
+  (check-equal? (bit-string-ref (bit-string-append (bytes 0) (bytes 4)) 13) 1)
 
-(check-equal? (bit-string->bytes (sub-bit-string (sub-bit-string (bytes 255) 1 6)
-						 1 4))
-	      (bytes #xe0))
+  (check-equal? (bit-string->bytes (sub-bit-string (sub-bit-string (bytes 255) 1 6)
+                                                   1 4))
+                (bytes #xe0))
 
-;; Caught by type (and contract):
-;; (check-exn #rx"Low bit must be non-negative"
-;; 	   (lambda () (sub-bit-string (bytes 255) -1 6)))
+  ;; Caught by type (and contract):
+  ;; (check-exn #rx"Low bit must be non-negative"
+  ;; 	   (lambda () (sub-bit-string (bytes 255) -1 6)))
 
-(check-exn #rx"High bit must be less than or equal to bit string length"
-	   (lambda () (sub-bit-string (bytes 255) 1 60)))
+  (check-exn #rx"High bit must be less than or equal to bit string length"
+             (lambda () (sub-bit-string (bytes 255) 1 60)))
 
-(check-exn #rx"High bit 1 must be greater than or equal to low bit 6"
-	   (lambda () (sub-bit-string (bytes 255) 6 1)))
+  (check-exn #rx"High bit 1 must be greater than or equal to low bit 6"
+             (lambda () (sub-bit-string (bytes 255) 6 1)))
 
-(check-equal? (bit-string->bytes
-	       (sub-bit-string (bit-string-append (bytes 1) (bytes 2)) 0 8))
-	      (bytes 1))
-(check-equal? (bit-string-pack (sub-bit-string
-				(bit-string-append (bytes 1)
-						   (make-bit-slice (bytes 255) 1 6))
-				4 12))
-	      (bytes 31))
-(check-equal? (bit-string-append #"" #"") #"")
-(check-equal? (bit-string-append #"a" #"") #"a")
-(check-equal? (bit-string-append #"" #"a") #"a")
+  (check-equal? (bit-string->bytes
+                 (sub-bit-string (bit-string-append (bytes 1) (bytes 2)) 0 8))
+                (bytes 1))
+  (check-equal? (bit-string-pack (sub-bit-string
+                                  (bit-string-append (bytes 1)
+                                                     (make-bit-slice (bytes 255) 1 6))
+                                  4 12))
+                (bytes 31))
+  (check-equal? (bit-string-append #"" #"") #"")
+  (check-equal? (bit-string-append #"a" #"") #"a")
+  (check-equal? (bit-string-append #"" #"a") #"a"))
