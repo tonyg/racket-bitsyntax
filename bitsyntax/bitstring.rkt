@@ -5,12 +5,60 @@
 ;; by 8. If the number of bits is divisible by 8, the bitstring is
 ;; also a binary."
 ;;
-;; They don't make it clear in the documentation that I can see, but
-;;     <<_:6, F:10, _:8>> = <<255, 240, 0>>.
-;; gives a binding of F = 1008, rather than 963, so clearly when
-;; destructuring a binary bits are counted off from the MSB of a byte
-;; to the LSB rather than the other way around!
+;; They don't make it clear in the documentation that I can see, but,
+;; experimenting, we see
+;;     <<A:6, B:10, C:8>> = <<255, 240, 0>>, {A,B,C}.                        ===>   {63,1008,0}
+;;     <<A:6, B:10, C:8>> = <<170, 240, 0>>, {A,B,C}.                        ===>   {42,752,0}
+;;     <<A:6, B:10, C:8>> = <<255, 170, 0>>, {A,B,C}.                        ===>   {63,938,0}
+;;     <<A:6/little, B:10/little, C:8/little>> = <<255, 240, 0>>, {A,B,C}.   ===>   {63,252,0}
+;;     <<A:6/little, B:10/little, C:8/little>> = <<170, 240, 0>>, {A,B,C}.   ===>   {42,188,0}
+;;     <<A:6/little, B:10/little, C:8/little>> = <<255, 170, 0>>, {A,B,C}.   ===>   {63,746,0}
+;; and
+;;     <<2,1,0>>   = <<0:6         , 513:10,        0:8>>.
+;;     <<194,1,0>> = <<48:6        , 513:10,        0:8>>.
+;;     <<2,193,0>> = <<0:6         , 705:10,        0:8>>.
+;;     <<0,6,0>>   = <<0:6/little  , 513:10/little, 0:8/little>>.
+;;     <<192,6,0>> = <<48:6/little , 513:10/little, 0:8/little>>.
+;;     <<3,6,0>>   = <<0:6/little  , 705:10/little, 0:8/little>>.
 ;;
+;; and furthermore, only putting "/little" on the middle clause has
+;; the same effect as putting it everywhere (for these examples),
+;; presumably because it's the only portion that is longer than eight
+;; bits.
+;;
+;; I conclude that bits are always counted off from the MSB of a byte
+;; to the LSB rather than the other way around. Endianness only
+;; affects which group of eight bits is dealt with first: in
+;; big-endian mode, bits are copied out in order from big end to
+;; little end, so a value with bits ABCDEFGHIJKL will appear in that
+;; order in the result. In little-endian mode, bits are copied out
+;; from MSB to LSB as usual, but the lowest eight bits are copied
+;; first, followed by the next byte, and so on, so ABCDEFGHIJKL will
+;; appear as EFGHIJKLABCD.
+;;
+;; For <<0:6, 513:10, 0:8>> in big and little:
+;; Big-endian:    0000 0010 0000 0001 0000 0000
+;; Little-endian: 0000 0000 0000 0110 0000 0000
+;;                       -- ---- --     low eight bits of 513
+;;                                 --   high two bits of 513
+;;
+;; For <<48:6, 513:10, 0:8>> in big and little:
+;; Big-endian:    1100 0010 0000 0001 0000 0000
+;; Little-endian: 1100 0000 0000 0110 0000 0000
+;;                       __ ____ __     low eight bits of 513
+;;                                 __   high two bits of 513
+;;
+;; For <<0:6, 705:10, 0:8>> in big and little:
+;; Big-endian:    0000 0010 1100 0001 0000 0000
+;; Little-endian: 0000 0011 0000 0110 0000 0000
+;;                       __ ____ __     low eight bits of 705
+;;                                 __   high two bits of 705
+;;
+;; Finally, for <<0:4, 47574:16, 0:4>> in big and little:
+;; 47574 = 1011 1001 1101 0110 in binary
+;; Big-endian:    <<11,157,96>>  0000 1011 1001 1101 0110 0000
+;; Little-endian: <<13,107,144>> 0000 1101 0110 1011 1001 0000
+
 ;; A binary, for Racket, is a (bytes?).
 
 ;; A Binary is a (bytes ...).
@@ -34,12 +82,6 @@
 ;; play. Whether big- or little-endian interpretations are used, the
 ;; most-significant bit in any byte-size piece, no matter its
 ;; alignment, is always the lowest-numbered bit in the bit string.
-;;
-;; This is not quite what one would expect from a mathematical point
-;; of view (and it doesn't line up too closely with Racket's bit
-;; manipulation primitives either) but makes sense when considering
-;; the way network packets are written down and thought about, and is
-;; compatible with Erlang to boot.
 
 (provide bit-slice?
 	 bit-slice-binary
@@ -594,9 +636,10 @@
 	      ((= i count) acc)))
 	(let* ((bs (bit-string->bytes/align x #f))
 	       (count (bytes-length bs)))
-	  (do ((i (- count 1) (- i 1))
-	       (#{acc : Nonnegative-Integer} 0 (bitwise-ior (arithmetic-shift acc 8)
-							    (bytes-ref bs i))))
+	  (do ((i (- count 2) (- i 1))
+	       (#{acc : Nonnegative-Integer}
+                (arithmetic-shift (bytes-ref bs (- count 1)) (- width (* 8 count)))
+                (bitwise-ior (arithmetic-shift acc 8) (bytes-ref bs i))))
 	      ((< i 0) acc))))))
 
 (: bit-string->byte : BitString -> Byte)
@@ -632,7 +675,10 @@
   (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #f) 252)
   (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #f #t) 252)
   (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #f) 1008)
-  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #t) -16))
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 255 240 0) 6 16) #t #t) -16)
+
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 240 192) 0 10) #f #f) 1008)
+  (check-equal? (bit-string->integer (make-bit-slice (bytes 240 192) 0 10) #f #t) -16))
 
 (: integer->bit-string : Integer Natural Boolean -> BitString)
 ;; Encodes an integer as a BitString of a given width using the given
@@ -649,6 +695,7 @@
 	      (bytes-set! bin i (bitwise-bit-field n low-bit (+ low-bit 8)))))
 	  (do ((i 0 (+ i 1)))
 	      ((= i whole-bytes)
+               (bytes-set! bin (- i 1) (arithmetic-shift (bytes-ref bin (- i 1)) bits-remaining))
 	       (sub-bit-string bin 0 width))
 	    (let ((low-bit (* i 8)))
 	      (bytes-set! bin i (bitwise-bit-field n low-bit (+ low-bit 8)))))))))
@@ -663,6 +710,7 @@
 
   (check-equal? (integer->bit-string 252 10 #f)  (make-bit-slice (bytes 252 0) 0 10))
   (check-equal? (integer->bit-string 1008 10 #t) (make-bit-slice (bytes 3 240) 6 16))
+  (check-equal? (integer->bit-string 1008 10 #f) (make-bit-slice (bytes 240 192) 0 10))
   (check-equal? (integer->bit-string -16 10 #t)  (make-bit-slice (bytes 255 240) 6 16))
   ;;                                                                    ^^^
   ;; That this is not 3 is insignificant. The bit-slice says that bits number 0-5 are

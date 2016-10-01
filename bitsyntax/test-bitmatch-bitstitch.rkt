@@ -28,6 +28,10 @@
 (check-equal? (bit-string-pack (bit-string (1008 :: bits 10) (0 :: bits 6)))
 	      (bytes 252 0))
 
+(check-equal? (bit-string-pack (bit-string (1008 :: little-endian bits 10)
+                                           (0 :: little-endian bits 6)))
+	      (bytes 240 192))
+
 (define (pascal->string/utf-8 bs)
   (bit-string-case bs
     ([len (body :: binary bytes len)]
@@ -146,3 +150,61 @@
   (check-true (bit-string-case test
                 ([(= test :: binary)] #t)
                 (else #f))))
+
+(check-equal? (bit-string-case (bytes 240)
+                ([(a :: big-endian bits 4)
+                  (b :: big-endian bits 4)]
+                 (list a b)))
+              (list 15 0))
+
+(check-equal? (bit-string-case (bytes 240)
+                ([(a :: little-endian bits 4)
+                  (b :: little-endian bits 4)]
+                 (list a b)))
+              (list 15 0))
+
+(check-equal? (bit-string->bytes (bit-string (15 :: big-endian bits 4)
+                                             (0 :: big-endian bits 4)))
+              (bytes 240))
+
+(check-equal? (bit-string->bytes (bit-string (15 :: little-endian bits 4)
+                                             (0 :: little-endian bits 4)))
+              (bytes 240))
+
+(let ((CB (lambda (a b c x y z)
+            (check-equal? (bit-string-pack (bit-string (a :: big-endian bits 6)
+                                                       (b :: big-endian bits 10)
+                                                       (c :: big-endian bits 8)))
+                          (bytes x y z))
+            (check-equal? (bit-string-case (bytes x y z)
+                            ([(a :: big-endian bits 6)
+                              (b :: big-endian bits 10)
+                              (c :: big-endian bits 8)]
+                             (list a b c)))
+                          (list a b c))))
+      (CL (lambda (a b c x y z)
+            (check-equal? (bit-string-pack (bit-string (a :: little-endian bits 6)
+                                                       (b :: little-endian bits 10)
+                                                       (c :: little-endian bits 8)))
+                          (bytes x y z))
+            (check-equal? (bit-string-case (bytes x y z)
+                            ([(a :: little-endian bits 6)
+                              (b :: little-endian bits 10)
+                              (c :: little-endian bits 8)]
+                             (list a b c)))
+                          (list a b c)))))
+  (CB 63 1008 0 255 240 0)
+  (CB 42 752 0 170 240 0)
+  (CB 63 938 0 255 170 0)
+
+  (CL 63 252 0 255 240 0)
+  (CL 42 188 0 170 240 0)
+  (CL 63 746 0 255 170 0)
+
+  (CB 0 513 0 2 1 0)
+  (CB 48 513 0 194 1 0)
+  (CB 0 705 0 2 193 0)
+
+  (CL 0 513 0 0 6 0)
+  (CL 48 513 0 192 6 0)
+  (CL 0 705 0 3 6 0))

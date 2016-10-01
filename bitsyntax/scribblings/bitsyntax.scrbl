@@ -1,10 +1,14 @@
 #lang scribble/manual
 
 @(require scribble/racket
+          scribble/example
 	  (for-label racket
 		     bitsyntax))
 
-@title[#:version "4.1"]{bitsyntax}
+@(define bitsyntax-evaluator
+   (make-base-eval '(require bitsyntax file/sha1)))
+
+@title[#:version "5.0"]{bitsyntax}
 @author[(author+email "Tony Garnock-Jones" "tonygarnockjones@gmail.com")]
 
 @section{Introduction}
@@ -47,6 +51,14 @@ a suggestion for improving it, please don't hesitate to
 
 @section{Changes}
 
+Version 5.0 of this library repaired translation between little-endian
+integers and bit-strings of width not equal to a multiple of 8 bits.
+Previously, the high bits of such integers were placed in an incorrect
+position; see @secref{integer-layout} for details. This brings the
+behaviour of the library into line with Erlang. Since the change may
+affect existing programs, it warrants an incremented major version
+number.
+
 Version 4.1 of this library adds @racket[bit-string-take] and
 @racket[bit-string-drop], and causes the empty bit-string to be
 treated as an identity in @racket[bit-string-append].
@@ -72,7 +84,12 @@ for this is to avoid a collision with Typed Racket, which uses
 
 @section{What is a bit string?}
 
-A bit string is either
+A bit string is a sequence of bits, numbered ascending from zero. The
+first byte is bits 0 through 7 inclusive, where bit 0 is the
+@emph{most} significant bit in the byte; the second byte is bits 8
+through 15; and so on.
+
+Concretely, a bit string is either
 
 @itemize[
   @item{a byte vector, as returned by @racket[bytes] and friends;
@@ -194,7 +211,7 @@ The supported segment types are
   big- or little-endian integer of the given width in bits is read out
   of the bit string. Unless otherwise specified, integers default to
   big-endian, unsigned, and @bold{eight bits wide}. Any width, not just
-  multiples of eight, is supported.}
+  multiples of eight, is supported. See @secref{integer-layout} for details.}
 
   @item{@racket[float] -- A 32- or 64-bit float in either big- or
   little-endian byte order is read out of the bit string using
@@ -342,7 +359,8 @@ given themselves, and take whatever options they need by other means.
 If a width is specified, integers will be truncated or sign-extended
 to fit, and binaries will be truncated. If a binary is shorter than a
 specified width, an error is signalled. Floating-point encoding can
-only be done using 32- or 64-bit widths.
+only be done using 32- or 64-bit widths, but integer encoding can be
+done using any bit width; see @secref{integer-layout} for details.
 
 For example:
 
@@ -364,6 +382,90 @@ is, @racket[[... :: integer bits 8]]), you can use the second form of
 @racket[spec] given above.
 
 }
+
+@subsection[#:tag "integer-layout"]{Binary representation of integers}
+
+Bits in a bit-string are always counted off from the MSB of a byte to
+the LSB rather than the other way around.
+
+Endianness (when converting between bit-strings and integers) only
+affects which group of eight bits is dealt with first. In big-endian
+mode, bits are copied out in order from big end to little end, so an
+integer value with bits @tt{ABCDEFGHIJKL} will lead to bits appearing
+in that order in the result. In little-endian mode, bits are copied
+out from MSB to LSB as usual, but the lowest eight bits of the integer
+are copied first, followed by the next byte's worth, and so on, so
+@tt{ABCDEFGHIJKL} will appear as @tt{EFGHIJKLABCD} in the resulting
+bit-string.
+
+For multiples of eight bits aligned to byte boundaries, the usual
+endianness conversions follow:
+
+@verbatim{705 = 0000001011000001 ---> 1100000100000010 in little-endian
+                   0   2   C   1         C   1   0   2}
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (bytes->hex-string (bit-string->bytes (bit-string (705 :: big-endian bits 16))))
+          (bytes->hex-string (bit-string->bytes (bit-string (705 :: little-endian bits 16))))]
+
+However, when other integer widths are used, little-endian conversion
+of values longer than eight bits can be surprising. For example, let's
+first examine encoding the number 48 as a 6-bit integer followed by
+705 as a 10-bit integer in big-endian:
+
+@verbatim{48  = 110000xx
+          705 = 10110000 01xxxxxx
+
+          110000 10110000 01 = resulting bitstring
+             C    2   C    1}
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (bytes->hex-string (bit-string->bytes (bit-string (48 :: big-endian bits 6)
+                                                            (705 :: big-endian bits 10))))]
+
+Encoding the same numbers with the same widths in little-endian, we
+see that the low byte of the 10-bit value is streamed immediately
+following the bits of the 6-bit value, followed by the remainder of
+the 10-bit value:
+
+@verbatim{48  =          xx110000 ---> 110000xx           in little-endian
+          705 = xxxxxx10 11000001 ---> 11000001 10xxxxxx  in little-endian
+
+          110000 11000001 10 = resulting bitstring
+             C    3   0    6}
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (bytes->hex-string (bit-string->bytes (bit-string (48 :: little-endian bits 6)
+                                                            (705 :: little-endian bits 10))))]
+
+Finally, here is an example of a multiple of eight bits that is not
+aligned to a byte boundary. We will encode 47574 as a 16-bit quantity,
+padded with four zero bits on each side. First, in big-endian:
+
+@verbatim{47574 = 10111001 11010110
+             0000 10111001 11010110 0000 = result
+                0    B   9    D   6    0}
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (bytes->hex-string (bit-string->bytes (bit-string (0 :: big-endian bits 4)
+                                                            (47574 :: big-endian bits 16)
+                                                            (0 :: big-endian bits 4))))]
+
+And second, in little-endian:
+
+@verbatim{47574 = 10111001 11010110 ---> 11010110 10111001  in little-endian
+                                    0000 11010110 10111001 0000 = result
+                                       0    D   6    B   9    0}
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (bytes->hex-string (bit-string->bytes (bit-string (0 :: little-endian bits 4)
+                                                            (47574 :: little-endian bits 16)
+                                                            (0 :: little-endian bits 4))))]
 
 @subsection[#:tag "custom-parsers"]{Custom parsers and custom formatters}
 
