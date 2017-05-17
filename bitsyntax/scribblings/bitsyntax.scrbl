@@ -265,7 +265,7 @@ For example:
 @racketblock[
 	     (bit-string-case some-input-value
 	       ([(= 0 :: bytes 2)] 'a)
-	       ([(f :: bits 10) (:: binary)]
+	       ([(f :: bits 10) (:: bits 6)]
 		(when (and (< f 123) (>= f 100)))
 		'between-100-and-123)
 	       ([(f :: bits 10) (:: bits 6)]
