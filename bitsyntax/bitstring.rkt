@@ -148,12 +148,22 @@
 (define (bit-string-empty? x)
   (zero? (bit-string-length x)))
 
+(: ensure-non-negative : Integer -> Natural)
+;; Enforces invariants related to non-negativity. This allows the type
+;; system to accept invariants maintained by code distributed
+;; throughout the codebase, which it cannot prove for itself. If the
+;; calling code is correct, the error below will not be signalled.
+(define (ensure-non-negative x)
+  (if (negative? x)
+      (error 'ensure-non-negative "Invariant violated: expected ~v to be non-negative" x)
+      x))
+
 (: bit-string-length : BitString -> Natural)
 ;; Returns the number of bits in the given bitstring.
 (define (bit-string-length x)
   (cond
    ((bytes? x) (* 8 (bytes-length x)))
-   ((bit-slice? x) (cast (- (bit-slice-high-bit x) (bit-slice-low-bit x)) Natural))
+   ((bit-slice? x) (ensure-non-negative (- (bit-slice-high-bit x) (bit-slice-low-bit x))))
    ((splice? x) (splice-length x))))
 
 (module+ test
@@ -287,14 +297,15 @@
                 ((< offset splice-midpoint)
                  (let-values (((left mid) (split original-left offset)))
                    (values left
-                           (splice (cast (- (splice-length x) offset) Natural)
+                           (splice (ensure-non-negative (- (splice-length x) offset))
                                    mid
                                    (splice-right x)))))
                 ((= offset splice-midpoint)
                  (values original-left (splice-right x)))
                 (else
-                 (let-values (((mid right) (split (splice-right x)
-                                                  (cast (- offset splice-midpoint) Natural))))
+                 (let-values (((mid right)
+                               (split (splice-right x)
+                                      (ensure-non-negative (- offset splice-midpoint)))))
                    (values (splice offset original-left mid)
                            right))))))))])))
 
@@ -343,7 +354,7 @@
 	     (midpoint (bit-string-length left)))
 	(if (< offset midpoint)
 	    (search left offset)
-	    (search (splice-right x) (cast (- offset midpoint) Natural))))))))
+	    (search (splice-right x) (ensure-non-negative (- offset midpoint)))))))))
 
 (module+ test
   (check-equal? (bit-string-ref (bytes #x80) 0) 1)
@@ -417,7 +428,7 @@
 (define (bits->bytes+slop bit-count)
   (let* ((byte-count (quotient (+ 7 bit-count) 8))
 	 (slop (- (* 8 byte-count) bit-count)))
-    (values byte-count (cast slop Natural))))
+    (values byte-count (ensure-non-negative slop))))
 
 (: bit-string-byte-count+slop : BitString -> (Values Natural Natural))
 ;; Is to bit-string-byte-count as bits->bytes+slop is to bits->bytes.
@@ -433,7 +444,7 @@
 (: bit-mask : Natural -> Natural)
 ;; Returns the sum of 2^0 ... 2^(width-1).
 (define (bit-mask width)
-  (cast (sub1 (arithmetic-shift 1 width)) Natural))
+  (ensure-non-negative (sub1 (arithmetic-shift 1 width))))
 
 (: copy-bits! : Bytes Natural Bytes Natural Natural -> Void)
 ;; Destructively updates its first argument, replacing bits numbered
@@ -464,13 +475,13 @@
 			(bitwise-ior (bitwise-and old target-mask)
 				     (arithmetic-shift (bitwise-and new source-mask)
 						       (- source-shift target-shift))))))
-	(set! remaining-count (cast (- remaining-count bit-count) Natural))
+	(set! remaining-count (ensure-non-negative (- remaining-count bit-count)))
 	(bump-target! bit-count)
 	(bump-source! bit-count)))
     ;; First, align the source to a byte boundary.
     (when (positive? source-shift)
-      (let* ((source-left-overlap (min remaining-count (cast (- 8 source-shift) Natural)))
-	     (remaining-in-first-target-byte (cast (- 8 target-shift) Natural))
+      (let* ((source-left-overlap (min remaining-count (ensure-non-negative (- 8 source-shift))))
+	     (remaining-in-first-target-byte (ensure-non-negative (- 8 target-shift)))
 	     (delta (- source-left-overlap remaining-in-first-target-byte)))
 	(if (positive? delta)
 	    (begin (shuffle! remaining-in-first-target-byte)
@@ -489,11 +500,11 @@
 		 (set! remaining-count (remainder remaining-count 8)))
 	  (do ((i 0 (+ i 1)))
 	      ((= i remaining-whole-bytes))
-	    (shuffle! (cast (- 8 target-shift) Natural))
-	    (shuffle! (cast (- 8 source-shift) Natural)))))
+	    (shuffle! (ensure-non-negative (- 8 target-shift)))
+	    (shuffle! (ensure-non-negative (- 8 source-shift))))))
     ;; Now we have fewer than eight bits left to transfer.
     (when (positive? remaining-count)
-      (let ((remaining-in-first-target-byte (cast (- 8 target-shift) Natural)))
+      (let ((remaining-in-first-target-byte (ensure-non-negative (- 8 target-shift))))
 	(if (> remaining-count remaining-in-first-target-byte)
 	    (begin (shuffle! remaining-in-first-target-byte)
 		   (shuffle! remaining-count))
@@ -520,7 +531,7 @@
    ((bit-slice? x)
     (copy-bits! buf offset
 		(bit-slice-binary x) (bit-slice-low-bit x)
-		(cast (- (bit-slice-high-bit x) (bit-slice-low-bit x)) Natural)))
+		(ensure-non-negative (- (bit-slice-high-bit x) (bit-slice-low-bit x)))))
    ((splice? x)
     (let* ((left (splice-left x))
 	   (left-length (bit-string-length left)))
