@@ -16,6 +16,11 @@ link:
 unlink:
 	raco pkg remove $(PACKAGENAME)
 
+test: setup testonly
+
+testonly:
+	raco test -p $(PACKAGENAME)
+
 htmldocs:
 	raco scribble \
 		--html \
