@@ -11,6 +11,45 @@
 				    rest)))
 	      #"ABCD")
 
+(check-equal? (bit-string->bytes (bit-string-case (bytes 4 65 66)
+				   ([len (body :: binary bytes len)]
+				    body)
+				   ([(rest :: binary)]
+				    rest)))
+	      #"\x04AB")
+
+(check-equal? (bit-string->bytes (bit-string-case (bytes 4 65 66)
+                                   #:on-short (lambda (fail) #"short")
+				   ([len (body :: binary bytes len)]
+				    body)
+				   ([(rest :: binary)]
+				    rest)))
+	      #"short")
+
+(: conditionally-bit-string->bytes : (U BitString Symbol) -> (U Bytes Symbol))
+(define (conditionally-bit-string->bytes x)
+  (if (bit-string? x)
+      (bit-string->bytes x)
+      x))
+
+(check-equal? (conditionally-bit-string->bytes
+               (bit-string-case (bytes 4 65 66 67 68)
+                 #:on-short (lambda (fail) 'short)
+                 ([len (body :: binary bytes len)]
+                  body)
+                 ([(rest :: binary)]
+                  rest)))
+              #"ABCD")
+
+(check-equal? (conditionally-bit-string->bytes
+               (bit-string-case (bytes 4 65 66)
+                 #:on-short (lambda (fail) 'short)
+                 ([len (body :: binary bytes len)]
+                  body)
+                 ([(rest :: binary)]
+                  rest)))
+              'short)
+
 (check-equal? (bit-string-case (bytes 10 65 66 67 68 69 70 71 72 73 74)
 		([len (val :: integer bytes len)]
 		 val))

@@ -51,6 +51,10 @@ a suggestion for improving it, please don't hesitate to
 
 @section{Changes}
 
+Version 5.1 of this library adds the @racket[#:on-short] optional
+argument to @racket[bit-string-case]. See the
+section "@secref{handling-short-inputs}" for more information.
+
 Version 5.0 of this library repaired translation between little-endian
 integers and bit-strings of width not equal to a multiple of 8 bits.
 Previously, the high bits of such integers were placed in an incorrect
@@ -140,8 +144,10 @@ has type @racket[BitString] if and only if it also results in
 			  signed unsigned
 			  little-endian big-endian native-endian
 			  bytes bits default)
-	      (bit-string-case value-expr clause ...)
-	      ((clause ([segment-pattern ...]
+	      (bit-string-case value-expr maybe-short-handler clause ...)
+	      ((maybe-short-handler (code:line)
+                                    (code:line #:on-short short-input-handler))
+               (clause ([segment-pattern ...]
 			(when guard-expr)
 			body-expr ...)
 		       ([segment-pattern ...]
@@ -175,11 +181,15 @@ has type @racket[BitString] if and only if it also results in
 				  native-endian)
 	       (width-option (code:line bits n)
 			     (code:line bytes n)
-			     default))]{
+			     default))
+              #:contracts
+              ((short-input-handler (-> (-> any/c) any/c)))]{
 
 The @racket[value-expr] is evaluated first. It must evaluate to a bit
 string---any object for which @racket[bit-string?] would return
-@racket[#t].
+@racket[#t]. Next, the optional @racket[short-input-handler] is
+evaluated, if supplied. (It is described further
+@seclink["handling-short-inputs"]{below}.)
 
 Each @racket[clause] is then tried in turn. The first succeeding
 clause determines the result of the whole expression. A clause matches
@@ -188,6 +198,12 @@ of the input, there is no unused input left over at the end, and the
 @racket[guard-expr] (if there is one) evaluates to a true value. If a
 @racket[clause] succeeds, then @racket[(begin body-expr ...)] is
 evaluated, and its result becomes the result of the whole expression.
+
+If a @racket[clause]'s pattern attempts to read past the end of the
+given input, the input is considered to be @emph{short}, and the
+@racket[short-input-handler] is invoked, if one was supplied. If no
+@racket[short-input-handler] was supplied, a short input just makes
+the clause fail, and matching continues with the next @racket[clause].
 
 If none of the @racket[clause]s succeed, and there is an @racket[else]
 clause, its @racket[body-expr]s are evaluated and returned. If there's
@@ -298,19 +314,99 @@ This expression analyses @racket[some-input-value], which must be a
 
 ]
 
-The following code block parses a Pascal-style byte string (one length
+The following example parses a Pascal-style byte string (one length
 byte, followed by the right number of data bytes) and decodes it using
 a UTF-8 codec:
 
-@racketblock[
-	     (bit-string-case input-bit-string
-	       ([len (body :: binary bytes len)]
-		(bytes->string/utf-8 (bit-string-pack body))))
-]
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (define (parse-pascal-string input-bit-string)
+            (bit-string-case input-bit-string
+              ([len (body :: binary bytes len)]
+               (bytes->string/utf-8 (bit-string-pack body)))))]
 
 Notice how the @racket[len] value, which came from the input bit
 string itself, is used to decide how much of the remaining input to
 consume.
+
+@subsubsection[#:tag "handling-short-inputs"]{Handling short inputs}
+
+Most of the time, @racket[bit-string-case] is used with complete
+inputs. For example, a complete input might be the entirety of an
+Ethernet packet, a complete UDP datagram, or a precisely-measured HTTP
+POST request body. In these situations, no further input is expected
+to be available, and patterns in @racket[bit-string-case] clauses that
+need to examine beyond the end of the currently-available input should
+simply fail. This is the default behaviour, when @racket[#:on-short]
+is omitted from @racket[bit-string-case].
+
+However, when working with inputs that are
+@emph{self-delimiting} (such as JSON texts, XML documents, or
+S-expressions) and that are being read incrementally from input
+streams (i.e. ports, including in particular TCP connections), there
+may be an alternative, appropriate thing to do when a pattern needs to
+look past the end of the currently-available input. For example, it
+might be sensible to ask for more input.
+
+Supplying a handler function with @racket[#:on-short] allows the user
+of @racket[bit-string-case] to specify the action to be taken when
+@racket[bit-string-case] needs to look beyond the end of the available
+input.
+
+A @racket[#:on-short] handler function should take a single argument,
+a zero-argument function @racket[fail]. The handler function may
+either return a value to be used as the result of the entire
+@racket[bit-string-case]; perform some effect such as calling
+@racket[error]; or invoke the passed-in @racket[fail] function. The
+@racket[fail] function should be called when the handler function has
+decided that the match should simply fail. Tail-calling @racket[fail]
+from a handler function instructs @racket[bit-string-case] to continue
+by moving on to the next clause in sequence.
+
+For example, consider working with the Pascal-style string parser from
+above. Giving it a correctly-sized input works as expected:
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (parse-pascal-string #"\x04ABCD")]
+
+Giving it an overlong input causes failure, as expected because of the
+rule that a clause only matches if its @racket[segment-pattern]s match
+@emph{all} of the supplied input:
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (eval:error (parse-pascal-string #"\x04ABCDEFGH"))]
+
+Similarly, giving it a short input causes failure, because by default
+a short input is considered to be complete---that no more input will
+be available:
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (eval:error (parse-pascal-string #"\x04AB"))]
+
+However, we may be in a situation where we are incrementally parsing
+strings from a slow TCP stream or similar. In this situation, we want
+to treat a short input as a signal that we need more input before we
+can decide how to continue:
+
+@examples[#:eval bitsyntax-evaluator
+          #:label #f
+          (define (parse-pascal-string/incremental input-bit-string)
+            (bit-string-case input-bit-string
+              #:on-short (lambda (fail) 'short)
+              ([len (body :: binary bytes len)]
+               (bytes->string/utf-8 (bit-string-pack body)))))
+          (eval:error (parse-pascal-string/incremental #"\x04ABCDEFGH"))
+          (parse-pascal-string/incremental #"\x04ABCD")
+          (parse-pascal-string/incremental #"\x04AB")]
+
+Here, overlong and correctly-sized inputs are handled as before, but
+we use @racket[#:on-short] to supply a handler function that returns
+@racket['short] when more input is needed. The calling code might, for
+example, interpret @racket['short] to mean that a further read from a
+TCP stream is needed to complete the input.
 
 }
 

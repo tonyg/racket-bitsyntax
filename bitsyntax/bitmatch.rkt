@@ -47,16 +47,31 @@
 
 (require "bitstx.rkt")
 (require "bitstring.rkt")
+(require (for-syntax (only-in typed/untyped-utils syntax-local-typed-context?)))
+(require (prefix-in typed: typed/racket/base))
 
 (provide :: bit-string-case)
 
+(define-syntax (default-on-short stx)
+  (syntax-case stx ()
+    [(_)
+     (if (syntax-local-typed-context?)
+         #'(let ()
+             (typed:: h (typed:All (a) (typed:-> (typed:-> a) a)))
+             (define (h fail) (fail))
+             h)
+         #'(lambda (fail) (fail)))]))
+
 (define-syntax bit-string-case
   (syntax-rules ()
-    ((_ value clause ...)
-     (let ((temp value))
+    ((_ value #:on-short kshort-exp clause ...)
+     (let ((temp value)
+           (kshort kshort-exp))
        (when (not (bit-string? temp))
 	 (error 'bit-string-case "Not a bit string: ~v" temp))
-       (bit-string-case-helper temp clause ...)))))
+       (bit-string-case-helper temp kshort clause ...)))
+    ((_ value clause ...)
+     (bit-string-case value #:on-short (default-on-short) clause ...))))
 
 (define-for-syntax (parse-options action options)
   (let loop ((options options)
@@ -116,12 +131,12 @@
 (define-syntax bit-string-case-helper
   (lambda (stx)
     (syntax-case stx (when else)
-      ((_ value (else body ...))
+      ((_ value kshort (else body ...))
        (syntax (begin body ...)))
-      ((_ value)
+      ((_ value kshort)
        (syntax (error 'bit-string-case "No matching clauses for ~v"
 		      (bit-string-pack value))))
-      ((_ value ((pattern-clause ...) body-and-guard ...) clause ...)
+      ((_ value kshort ((pattern-clause ...) body-and-guard ...) clause ...)
        (with-syntax ([tval (syntax-case (syntax (body-and-guard ...)) (when else)
 			     (((when guard-exp) body ...)
 			      (syntax (if guard-exp (begin body ...) (kf))))
@@ -131,21 +146,22 @@
 					     (syntax->list (syntax (pattern-clause ...))))])
 	 (syntax
 	  (let ((kf (lambda ()
-		      (bit-string-case-helper value clause ...))))
+		      (bit-string-case-helper value kshort clause ...))))
 	    (bit-string-case-arm value
 				 tval
 				 kf
+                                 kshort
 				 canonical-pattern))))))))
 
 (define-syntax bit-string-case-arm
   (lambda (stx)
     (syntax-case stx (binary integer float default)
-      ((_ value tval fthunk ())
+      ((_ value tval fthunk kshort ())
        #'(if (zero? (bit-string-length value))
              tval
              (fthunk)))
-      ((_ value tval fthunk (( action (parser arg ...) dontcare1 dontcare2 dontcare3 )
-                             remaining-clauses ...))
+      ((_ value tval fthunk kshort (( action (parser arg ...) dontcare1 dontcare2 dontcare3 )
+                                    remaining-clauses ...))
        #'(parser #t
                  value
                  (lambda (result remaining-input)
@@ -153,33 +169,35 @@
                    ;; from parsing so expensive transforms can
                    ;; all be done together at the end.
                    (bit-string-perform-action action result fthunk
-                                              (bit-string-case-arm remaining-input tval fthunk
+                                              (bit-string-case-arm remaining-input
+                                                                   tval fthunk kshort
                                                                    (remaining-clauses ...))))
                  fthunk
                  arg ...))
-      ((_ value tval fthunk (( action binary dontcare1 dontcare2 default ) ))
+      ((_ value tval fthunk kshort (( action binary dontcare1 dontcare2 default ) ))
        #'(bit-string-perform-action action value fthunk tval))
-      ((_ value tval fthunk (( action binary dontcare1 dontcare2 default )
-                             remaining-clause remaining-clauses ...))
+      ((_ value tval fthunk kshort (( action binary dontcare1 dontcare2 default )
+                                    remaining-clause remaining-clauses ...))
        (raise-syntax-error 'bit-string-case
                            "Clauses supplied after variable-width binary clause"))
-      ((_ value tval fthunk (( action integer dontcare1 dontcare2 default )
-                             remaining-clauses ...))
-       #'(bit-string-case-arm value tval fthunk (( action integer dontcare1 dontcare2 8 )
-                                                 remaining-clauses ...)))
-      ((_ value tval fthunk (( action float dontcare1 dontcare2 default )
-                             remaining-clauses ...))
-       #'(bit-string-case-arm value tval fthunk (( action float dontcare1 dontcare2 64 )
-                                                 remaining-clauses ...)))
-      ((_ value tval fthunk (( action type signedness endianness width )
-                             remaining-clauses ...))
+      ((_ value tval fthunk kshort (( action integer dontcare1 dontcare2 default )
+                                    remaining-clauses ...))
+       #'(bit-string-case-arm value tval fthunk kshort (( action integer dontcare1 dontcare2 8 )
+                                                        remaining-clauses ...)))
+      ((_ value tval fthunk kshort (( action float dontcare1 dontcare2 default )
+                                    remaining-clauses ...))
+       #'(bit-string-case-arm value tval fthunk kshort (( action float dontcare1 dontcare2 64 )
+                                                        remaining-clauses ...)))
+      ((_ value tval fthunk kshort (( action type signedness endianness width )
+                                    remaining-clauses ...))
        #'(let-values (((lhs rhs) (bit-string-split-at-or-false value width)))
            (if (or (not lhs) (not rhs))
-               (fthunk)
+               (kshort fthunk)
                (let ((this-value (bit-string-case-extract-value
                                   lhs type signedness endianness width)))
                  (bit-string-perform-action action this-value fthunk
-                                            (bit-string-case-arm rhs tval fthunk
+                                            (bit-string-case-arm rhs
+                                                                 tval fthunk kshort
                                                                  (remaining-clauses ...))))))))))
 
 (define-syntax bit-string-perform-action
