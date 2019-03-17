@@ -172,7 +172,7 @@
                                               (bit-string-case-arm remaining-input
                                                                    tval fthunk kshort
                                                                    (remaining-clauses ...))))
-                 fthunk
+                 (lambda ([short? #f]) (if short? (kshort fthunk) (fthunk)))
                  arg ...))
       ((_ value tval fthunk kshort (( action binary dontcare1 dontcare2 default ) ))
        #'(bit-string-perform-action action value fthunk tval))

@@ -625,6 +625,7 @@ formatter together, we can improve the situation enormously:
 		  (code:comment "will be a literal #t to signal it is being used")
 		  (code:comment "as a parser.")
 		  (bit-string-case input
+                    #:on-short (lambda (fail) (kf #t)) @code:comment{See "detailed anatomy" section below}
 		    ([len (body :: binary bytes len) (rest :: binary)]
 		     (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
 		    (else
@@ -705,6 +706,7 @@ custom parser/formatter like the following:
 		 (code:comment "Consume a prefix of the input, decode as UTF-8")
 		 [(_ #t input ks kf length-in-bytes)
 		  (bit-string-case input
+                    #:on-short (lambda (fail) (kf #t)) @code:comment{Signal short input}
 		    ([ (body :: binary bytes length-in-bytes)
 		       (rest :: binary) ]
 		     (ks (bytes->string/utf-8 (bit-string->bytes body)) rest))
@@ -763,7 +765,7 @@ Applications of a custom extension macro are rewritten by
 @racket[(extension #t input ks kf arg ...)], and by
 @racket[bit-string] to @racket[(extension #f value arg ...)].
 
-@subsubsection{The detailed anatomy of a custom extension}
+@subsubsection[#:tag "detailed-extension-anatomy"]{The detailed anatomy of a custom extension}
 
 A custom extension should accept
 
@@ -782,7 +784,15 @@ prefix of the input, it should call the success continuation with two
 arguments: the value extracted from the input prefix, and the
 remaining unconsumed input (as a bit-string). If, on the other hand,
 it decides it cannot match a prefix of the input, it should call the
-failure continuation with no arguments.
+failure continuation with no arguments. Finally, if it decides that
+more input is required to make a decision one way or the other (see
+section "@secref{handling-short-inputs}"), it should call the failure
+continuation with a single @racket[#t] argument.@margin-note{The
+interface for calling the failure continuation is awkward: if
+backwards-compatibility had not been a concern, a separate "short
+input continuation" argument could have been supplied to custom
+extensions, rather than the current interface which overloads two uses
+onto the single failure continuation.}
 
 When called in "formatter" mode (with @racket[#f] as its first
 argument), it should expect a piece of syntax denoting the value to be
@@ -796,9 +806,13 @@ The general form, then, of custom extensions, is:
 	     (define-syntax my-custom-extension
 	       (syntax-rules ()
 		 [(_ #t input success-k failure-k other-arg ...)
-		  (if (analyze input)
-		      (success-k result-of-analysis remainder-of-input)
-		      (failure-k))]
+                  (cond [(input-too-short-to-decide? input)
+                         (failure-k #t)]
+		        [(input-matched? input)
+                         (success-k (some-parse-result-from-analysis-of input)
+                                    remainder-of-input)]
+                        [else
+                         (failure-k)])]
 		 [(_ #f value other-arg ...)
 		  (format-value-as-bit-string value)]))
 ]

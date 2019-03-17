@@ -82,3 +82,36 @@
 
 (check-equal? (bit-string->bytes (bit-string ('one :: (t:named-bit 'zero 'one))))
 	      (bytes 128))
+
+(define-syntax next-four
+  (syntax-rules ()
+    [(_ #t input ks kf)
+     (bit-string-case input
+       #:on-short (lambda (fail) (kf #t))
+       ([ (v :: binary bytes 4) (rest :: binary) ] (ks (bit-string->bytes v) rest))
+       (else (kf)))]
+    [(_ #f bs)
+     (bit-string (bs :: binary bytes 4))]))
+
+(check-equal? (bit-string->bytes
+               (bit-string (#"-" :: binary)
+                           (#"abcd" :: (next-four))
+                           (#"-" :: binary)))
+              #"-abcd-")
+
+(check-equal? (bit-string->bytes
+               (bit-string (#"-" :: binary)
+                           (#"abcdef" :: (next-four))
+                           (#"-" :: binary)))
+              #"-abcd-")
+
+(check-equal? (bit-string-case #"ab"
+                ([ (v :: (next-four)) ] (bit-string->bytes v))
+                (else #f))
+              #f)
+
+(check-equal? (bit-string-case #"ab"
+                #:on-short (lambda (fail) 'short)
+                ([ (v :: (next-four)) ] (bit-string->bytes v))
+                (else #f))
+              'short)
