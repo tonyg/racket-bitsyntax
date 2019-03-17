@@ -51,6 +51,10 @@ a suggestion for improving it, please don't hesitate to
 
 @section{Changes}
 
+Version 5.2 of this library supports short input signalling in custom
+extension parsers via an additional optional argument passed to their
+failure continuations.
+
 Version 5.1 of this library adds the @racket[#:on-short] optional
 argument to @racket[bit-string-case]. See the
 section "@secref{handling-short-inputs}" for more information.
