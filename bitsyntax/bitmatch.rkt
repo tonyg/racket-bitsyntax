@@ -125,6 +125,12 @@
      (parse-trailer (syntax discard) (syntax (:: trailer ...))))
     ((id trailer ...)
      (parse-trailer (syntax (bind id)) (syntax (trailer ...))))
+    (::
+     (raise-syntax-error 'bit-string-case
+                         "\"::\" cannot be used as binding-pattern id"))
+    (=
+     (raise-syntax-error 'bit-string-case
+                         "\"=\" used outside of comparison-pattern"))
     (id
      (parse-trailer (syntax (bind id)) (syntax ())))))
 
