@@ -3,7 +3,8 @@
 (require "bitstring.rkt")
 (require "bitmatch.rkt")
 (require "bitstitch.rkt")
-(require rackunit)
+(require rackunit
+         syntax/macro-testing)
 
 (define (experiment-one v)
   (bit-string-case v
@@ -283,3 +284,14 @@
                 ([ (v :: (next-four)) ] (bit-string->bytes v))
                 (else #f))
               'short)
+
+(check-exn #rx"(?i:.*::.*binding-pattern.*)"
+           (lambda () (convert-compile-time-error
+                       (bit-string-case #"\0\0"
+                         ([x ::] x)))))
+
+(check-exn #rx"(?i:.*=.*used outside.*comparison.*)"
+           (lambda () (convert-compile-time-error
+                       (bit-string-case #"\0\0"
+                         ([x =] x)))))
+
